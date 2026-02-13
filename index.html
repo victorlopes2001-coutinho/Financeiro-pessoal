@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Financeiro Coutinho</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#7c3aed">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Financeiro">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="Financeiro Coutinho">
+    
+    <!-- Ícone para iOS e Android -->
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="icon" type="image/png" href="icon-192.png">
+    <link rel="manifest" href="manifest.json">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
+    <style>
+        body { margin: 0; padding: 0; }
+        
+        /* Banner de instalação */
+        .install-banner {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #7c3aed, #6366f1);
+            color: white;
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            z-index: 9999;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+            animation: slideUp 0.3s ease;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        .install-banner-text { flex: 1; }
+        .install-banner-title { font-weight: bold; font-size: 14px; }
+        .install-banner-sub { font-size: 12px; opacity: 0.9; }
+        .install-btn {
+            padding: 10px 24px;
+            border-radius: 25px;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            background: white;
+            color: #7c3aed;
+            font-size: 14px;
+        }
+        .dismiss-btn {
+            padding: 8px;
+            background: transparent;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 20px;
+            opacity: 0.8;
+        }
+        .dismiss-btn:hover { opacity: 1; }
+    </style>
+</head>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Firebase Config
+        const firebaseConfig = {
+            apiKey: "AIzaSyDQozXEXyYd65kGC_XHCEiQYjuksiK87Mk",
+            authDomain: "financeiro-pessoal-coutinho.firebaseapp.com",
+            projectId: "financeiro-pessoal-coutinho",
+            storageBucket: "financeiro-pessoal-coutinho.firebasestorage.app",
+            messagingSenderId: "763738036354",
+            appId: "1:763738036354:web:aa7d827e3bcf43c5df3c9b"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        const formatarMoeda = (valor) => valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        
+        // Função para formatar data corretamente (evita problema de fuso horário)
+        const formatarData = (dataString) => {
+            const [ano, mes, dia] = dataString.split('-');
+            return `${dia}/${mes}/${ano}`;
+        };
+        
+        // Função para obter data atual no formato correto
+        const getDataHoje = () => {
+            const hoje = new Date();
+            const ano = hoje.getFullYear();
+            const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+            const dia = String(hoje.getDate()).padStart(2, '0');
+            return `${ano}-${mes}-${dia}`;
+        };
+
+        const Icon = ({ name, className = "w-5 h-5" }) => {
+            const icons = {
+                plus: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>,
+                trash: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>,
+                check: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>,
+                circle: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" strokeWidth={2} /></svg>,
+                edit: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>,
+                chevronLeft: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>,
+                chevronRight: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>,
+                moon: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>,
+                sun: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>,
+                x: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>,
+                arrowUp: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>,
+                arrowDown: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>,
+            };
+            return icons[name] || null;
+        };
+
+        const App = () => {
+            const [autenticado, setAutenticado] = useState(false);
+            const [usuarioAtual, setUsuarioAtual] = useState(null);
+            const [senhaDigitada, setSenhaDigitada] = useState('');
+            const [mostrarSenha, setMostrarSenha] = useState(false);
+            
+            // USUÁRIOS E SENHAS
+            const USUARIOS = {
+                victor: { senha: "coutinho2026", nome: "Victor", cor: "#7c3aed" },
+                salluany: { senha: "salluany2026", nome: "Salluany", cor: "#ec4899" },
+                welison: { senha: "welison2026", nome: "Welison", cor: "#3b82f6" }
+            };
+            
+            const [usuarioSelecionado, setUsuarioSelecionado] = useState('victor');
+            
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const [darkMode, setDarkMode] = useState(false);
+            const [diaSelecionado, setDiaSelecionado] = useState(null);
+            const [sincronizando, setSincronizando] = useState(false);
+            const [ultimaSync, setUltimaSync] = useState(null);
+
+            const [transacoes, setTransacoes] = useState([]);
+            const [contas, setContas] = useState([]);
+            const [investimentos, setInvestimentos] = useState([]);
+            
+            const [formTransacao, setFormTransacao] = useState({
+                tipo: 'despesa', descricao: '', valor: '', categoria: '',
+                data: getDataHoje(), pago: false, contaId: null
+            });
+            const [formConta, setFormConta] = useState({ nome: '', saldoInicial: '', tipo: 'corrente' });
+            const [formInvestimento, setFormInvestimento] = useState({
+                tipo: 'aplicacao', descricao: '', valor: '', categoria: 'Renda Fixa',
+                data: getDataHoje(), contaId: null
+            });
+            
+            const [mostrarFormConta, setMostrarFormConta] = useState(false);
+            const [editandoConta, setEditandoConta] = useState(null);
+            const [novoSaldoConta, setNovoSaldoConta] = useState('');
+            const [filtroFinanceiro, setFiltroFinanceiro] = useState('todas');
+            const [filtroTipo, setFiltroTipo] = useState('todos');
+            
+            // Estados para edição e dar baixa
+            const [editandoTransacao, setEditandoTransacao] = useState(null);
+            const [formEdicao, setFormEdicao] = useState({});
+            const [dandoBaixa, setDandoBaixa] = useState(null);
+            const [contaBaixa, setContaBaixa] = useState(null);
+
+            const [mesAtual, setMesAtual] = useState(new Date().getMonth());
+            const [anoAtual, setAnoAtual] = useState(new Date().getFullYear());
+
+            const categorias = ['Alimentacao', 'Transporte', 'Moradia', 'Saude', 'Educacao', 'Lazer', 'Vestuario', 'Salario', 'Contas', 'Outros'];
+            const categoriasInv = ['Renda Fixa', 'Acoes', 'FIIs', 'Tesouro Direto', 'CDB', 'LCI/LCA', 'Criptomoedas', 'Poupanca', 'Outros'];
+            const mesesNomes = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+            const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
+
+            // Carregar dados do Firebase em tempo real - POR USUÁRIO
+            useEffect(() => {
+                if (!usuarioAtual) return;
+                
+                setSincronizando(true);
+                
+                // Coleções separadas por usuário
+                const prefixo = `${usuarioAtual}_`;
+                
+                const unsubTransacoes = db.collection(prefixo + 'transacoes').onSnapshot(snapshot => {
+                    const dados = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    setTransacoes(dados);
+                    setUltimaSync(new Date());
+                    setSincronizando(false);
+                });
+
+                const unsubContas = db.collection(prefixo + 'contas').onSnapshot(snapshot => {
+                    const dados = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    setContas(dados);
+                });
+
+                const unsubInvestimentos = db.collection(prefixo + 'investimentos').onSnapshot(snapshot => {
+                    const dados = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    setInvestimentos(dados);
+                });
+
+                return () => {
+                    unsubTransacoes();
+                    unsubContas();
+                    unsubInvestimentos();
+                };
+            }, [usuarioAtual]);
+
+            // Calculos
+            const totalReceitas = transacoes.filter(t => t.tipo === 'receita' && t.pago).reduce((a, t) => a + t.valor, 0);
+            const totalDespesas = transacoes.filter(t => t.tipo === 'despesa' && t.pago).reduce((a, t) => a + t.valor, 0);
+            const receitasPendentes = transacoes.filter(t => t.tipo === 'receita' && !t.pago).reduce((a, t) => a + t.valor, 0);
+            const despesasPendentes = transacoes.filter(t => t.tipo === 'despesa' && !t.pago).reduce((a, t) => a + t.valor, 0);
+            const saldoContas = contas.reduce((a, c) => a + c.saldo, 0);
+            const totalInvestido = investimentos.filter(i => i.tipo === 'aplicacao').reduce((a, i) => a + i.valor, 0);
+            const totalResgatado = investimentos.filter(i => i.tipo === 'resgate').reduce((a, i) => a + i.valor, 0);
+
+            // Funcoes
+            const getDiasNoMes = (m, a) => new Date(a, m + 1, 0).getDate();
+            const getPrimeiroDia = (m, a) => new Date(a, m, 1).getDay();
+            
+            const getTransDia = (dia) => transacoes.filter(t => {
+                const [ano, mes, d] = t.data.split('-');
+                return parseInt(d) === dia && parseInt(mes) - 1 === mesAtual && parseInt(ano) === anoAtual;
+            });
+
+            // Dar baixa - atualiza saldo da conta
+            const abrirModalBaixa = (t) => {
+                if (t.pago) {
+                    // Se já está pago, apenas desmarcar
+                    confirmarBaixa(t, t.contaId, true);
+                } else {
+                    // Se está pendente, abrir modal para selecionar conta
+                    setDandoBaixa(t);
+                    setContaBaixa(t.contaId || (contas.length > 0 ? contas[0].id : null));
+                }
+            };
+
+            const confirmarBaixa = async (t, contaId, estaDesmarcando = false) => {
+                const novoPago = !t.pago;
+                const prefixo = `${usuarioAtual}_`;
+                
+                // Se tem conta vinculada, atualiza o saldo
+                if (contaId) {
+                    const conta = contas.find(c => c.id === contaId);
+                    if (conta) {
+                        let novoSaldo = conta.saldo;
+
+                        if (novoPago) {
+                            // Marcando como pago
+                            if (t.tipo === 'receita') {
+                                novoSaldo = conta.saldo + t.valor;
+                            } else {
+                                novoSaldo = conta.saldo - t.valor;
+                            }
+                        } else {
+                            // Desmarcando (voltando para pendente)
+                            if (t.tipo === 'receita') {
+                                novoSaldo = conta.saldo - t.valor;
+                            } else {
+                                novoSaldo = conta.saldo + t.valor;
+                            }
+                        }
+
+                        await db.collection(prefixo + 'contas').doc(contaId).update({ saldo: novoSaldo });
+                    }
+                }
+                
+                // Atualiza a transação com a conta selecionada
+                await db.collection(prefixo + 'transacoes').doc(t.id).update({ 
+                    pago: novoPago,
+                    contaId: contaId || null
+                });
+                
+                setDandoBaixa(null);
+                setContaBaixa(null);
+            };
+
+            // Editar transação
+            const iniciarEdicao = (t) => {
+                setEditandoTransacao(t.id);
+                setFormEdicao({
+                    descricao: t.descricao,
+                    valor: t.valor.toString(),
+                    categoria: t.categoria,
+                    data: t.data,
+                    tipo: t.tipo,
+                    contaId: t.contaId
+                });
+            };
+
+            const salvarEdicao = async (t) => {
+                if (!formEdicao.descricao || !formEdicao.valor) {
+                    alert('Preencha descrição e valor');
+                    return;
+                }
+
+                const novoValor = parseFloat(formEdicao.valor);
+                const diferencaValor = novoValor - t.valor;
+                const prefixo = `${usuarioAtual}_`;
+
+                // Se estava pago e mudou o valor, ajusta o saldo da conta
+                if (t.pago && t.contaId && diferencaValor !== 0) {
+                    const conta = contas.find(c => c.id === t.contaId);
+                    if (conta) {
+                        let novoSaldo = conta.saldo;
+                        if (t.tipo === 'receita') {
+                            novoSaldo = conta.saldo + diferencaValor;
+                        } else {
+                            novoSaldo = conta.saldo - diferencaValor;
+                        }
+                        await db.collection(prefixo + 'contas').doc(t.contaId).update({ saldo: novoSaldo });
+                    }
+                }
+
+                await db.collection(prefixo + 'transacoes').doc(t.id).update({
+                    descricao: formEdicao.descricao,
+                    valor: novoValor,
+                    categoria: formEdicao.categoria,
+                    data: formEdicao.data,
+                    tipo: formEdicao.tipo,
+                    contaId: formEdicao.contaId
+                });
+
+                setEditandoTransacao(null);
+                setFormEdicao({});
+            };
+
+            const cancelarEdicao = () => {
+                setEditandoTransacao(null);
+                setFormEdicao({});
+            };
+
+            const adicionarTransacao = async () => {
+                if (!formTransacao.descricao || !formTransacao.valor) return alert('Preencha descricao e valor');
+                
+                const valor = parseFloat(formTransacao.valor);
+                const prefixo = `${usuarioAtual}_`;
+                
+                // Se ja estiver marcado como pago E tiver conta, atualiza o saldo da conta
+                if (formTransacao.pago && formTransacao.contaId) {
+                    const conta = contas.find(c => c.id === formTransacao.contaId);
+                    if (conta) {
+                        const novoSaldo = formTransacao.tipo === 'receita' 
+                            ? conta.saldo + valor 
+                            : conta.saldo - valor;
+                        await db.collection(prefixo + 'contas').doc(formTransacao.contaId).update({ saldo: novoSaldo });
+                    }
+                }
+                
+                await db.collection(prefixo + 'transacoes').add({
+                    ...formTransacao,
+                    valor: valor,
+                    categoria: formTransacao.categoria || 'Outros',
+                    criadoEm: new Date().toISOString()
+                });
+                setFormTransacao({ tipo: 'despesa', descricao: '', valor: '', categoria: '', data: getDataHoje(), pago: false, contaId: formTransacao.contaId });
+            };
+
+            const excluirTransacao = async (id) => {
+                const t = transacoes.find(t => t.id === id);
+                if (!confirm('Excluir esta transacao?')) return;
+                
+                const prefixo = `${usuarioAtual}_`;
+                
+                // Se estava pago, reverte o saldo da conta
+                if (t && t.pago && t.contaId) {
+                    const conta = contas.find(c => c.id === t.contaId);
+                    if (conta) {
+                        const novoSaldo = t.tipo === 'receita' 
+                            ? conta.saldo - t.valor 
+                            : conta.saldo + t.valor;
+                        await db.collection(prefixo + 'contas').doc(t.contaId).update({ saldo: novoSaldo });
+                    }
+                }
+                
+                await db.collection(prefixo + 'transacoes').doc(id).delete();
+            };
+
+            const adicionarConta = async () => {
+                if (!formConta.nome || !formConta.saldoInicial) return alert('Preencha os campos');
+                const prefixo = `${usuarioAtual}_`;
+                await db.collection(prefixo + 'contas').add({
+                    nome: formConta.nome,
+                    saldo: parseFloat(formConta.saldoInicial),
+                    tipo: formConta.tipo,
+                    criadoEm: new Date().toISOString()
+                });
+                setFormConta({ nome: '', saldoInicial: '', tipo: 'corrente' });
+                setMostrarFormConta(false);
+            };
+
+            const excluirConta = async (id) => {
+                if (confirm('Excluir esta conta?')) {
+                    const prefixo = `${usuarioAtual}_`;
+                    await db.collection(prefixo + 'contas').doc(id).delete();
+                }
+            };
+
+            const editarSaldoConta = async (id, novoSaldo) => {
+                const prefixo = `${usuarioAtual}_`;
+                await db.collection(prefixo + 'contas').doc(id).update({ saldo: parseFloat(novoSaldo) });
+                setEditandoConta(null);
+                setNovoSaldoConta('');
+            };
+
+            const adicionarInvestimento = async () => {
+                if (!formInvestimento.descricao || !formInvestimento.valor) return alert('Preencha descricao e valor');
+                if (!formInvestimento.contaId) return alert('Selecione uma conta');
+                
+                const valor = parseFloat(formInvestimento.valor);
+                const conta = contas.find(c => c.id === formInvestimento.contaId);
+                const prefixo = `${usuarioAtual}_`;
+                
+                if (conta) {
+                    const novoSaldo = formInvestimento.tipo === 'aplicacao' ? conta.saldo - valor : conta.saldo + valor;
+                    await db.collection(prefixo + 'contas').doc(formInvestimento.contaId).update({ saldo: novoSaldo });
+                }
+                
+                await db.collection(prefixo + 'investimentos').add({
+                    ...formInvestimento,
+                    valor: valor,
+                    criadoEm: new Date().toISOString()
+                });
+                
+                setFormInvestimento({ tipo: 'aplicacao', descricao: '', valor: '', categoria: 'Renda Fixa', data: getDataHoje(), contaId: formInvestimento.contaId });
+            };
+
+            const excluirInvestimento = async (inv) => {
+                if (!confirm('Excluir? O saldo sera revertido.')) return;
+                
+                const conta = contas.find(c => c.id === inv.contaId);
+                const prefixo = `${usuarioAtual}_`;
+                
+                if (conta) {
+                    const novoSaldo = inv.tipo === 'aplicacao' ? conta.saldo + inv.valor : conta.saldo - inv.valor;
+                    await db.collection(prefixo + 'contas').doc(inv.contaId).update({ saldo: novoSaldo });
+                }
+                
+                await db.collection(prefixo + 'investimentos').doc(inv.id).delete();
+            };
+
+            const bgClass = darkMode ? 'bg-gray-900 text-white' : 'bg-gradient-to-br from-slate-50 to-blue-50';
+            const cardClass = darkMode ? 'bg-gray-800' : 'bg-white';
+
+            // Verificar login
+            const fazerLogin = () => {
+                const usuario = USUARIOS[usuarioSelecionado];
+                if (usuario && senhaDigitada === usuario.senha) {
+                    setAutenticado(true);
+                    setUsuarioAtual(usuarioSelecionado);
+                    localStorage.setItem('fin-auth', usuarioSelecionado);
+                } else {
+                    alert('Senha incorreta!');
+                }
+            };
+
+            // Verificar se já está logado
+            useEffect(() => {
+                const auth = localStorage.getItem('fin-auth');
+                if (auth && USUARIOS[auth]) {
+                    setAutenticado(true);
+                    setUsuarioAtual(auth);
+                }
+            }, []);
+            
+            // Função de logout
+            const fazerLogout = () => {
+                localStorage.removeItem('fin-auth');
+                setAutenticado(false);
+                setUsuarioAtual(null);
+                setSenhaDigitada('');
+                setTransacoes([]);
+                setContas([]);
+                setInvestimentos([]);
+            };
+
+            // Tela de Login
+            if (!autenticado) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm">
+                            <div className="text-center mb-6">
+                                <div className="text-5xl mb-3">💰</div>
+                                <h1 className="text-2xl font-bold text-gray-800">Financeiro Coutinho</h1>
+                                <p className="text-gray-500 text-sm">Selecione seu usuário</p>
+                            </div>
+                            
+                            <div className="space-y-4">
+                                {/* Seleção de usuário */}
+                                <div className="grid grid-cols-3 gap-2">
+                                    {Object.entries(USUARIOS).map(([key, user]) => (
+                                        <button
+                                            key={key}
+                                            onClick={() => setUsuarioSelecionado(key)}
+                                            className={`p-3 rounded-xl border-2 transition-all ${
+                                                usuarioSelecionado === key 
+                                                    ? 'border-purple-500 bg-purple-50' 
+                                                    : 'border-gray-200 hover:border-gray-300'
+                                            }`}
+                                            style={usuarioSelecionado === key ? {borderColor: user.cor} : {}}
+                                        >
+                                            <div className="text-2xl mb-1">
+                                                {key === 'victor' ? '👨' : key === 'salluany' ? '👩' : '👤'}
+                                            </div>
+                                            <div className="text-xs font-medium" style={{color: user.cor}}>
+                                                {user.nome}
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                                
+                                <div className="relative">
+                                    <input
+                                        type={mostrarSenha ? "text" : "password"}
+                                        value={senhaDigitada}
+                                        onChange={(e) => setSenhaDigitada(e.target.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && fazerLogin()}
+                                        placeholder={`Senha de ${USUARIOS[usuarioSelecionado]?.nome}`}
+                                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none text-lg"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setMostrarSenha(!mostrarSenha)}
+                                        className="absolute right-3 top-3 text-gray-400"
+                                    >
+                                        {mostrarSenha ? '🙈' : '👁️'}
+                                    </button>
+                                </div>
+                                
+                                <button
+                                    onClick={fazerLogin}
+                                    className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-lg transition-colors"
+                                    style={{backgroundColor: USUARIOS[usuarioSelecionado]?.cor}}
+                                >
+                                    Entrar como {USUARIOS[usuarioSelecionado]?.nome}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className={`min-h-screen ${bgClass} p-4`}>
+                    <div className="max-w-6xl mx-auto space-y-4">
+                        
+                        {/* Header */}
+                        <div className={`${cardClass} rounded-2xl shadow-xl p-4`}>
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h1 className="text-xl font-bold">Financeiro</h1>
+                                        <span 
+                                            className="px-2 py-1 rounded-lg text-white text-sm font-bold"
+                                            style={{backgroundColor: USUARIOS[usuarioAtual]?.cor}}
+                                        >
+                                            {USUARIOS[usuarioAtual]?.nome}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                                        <span className={`w-2 h-2 rounded-full ${sincronizando ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`}></span>
+                                        {sincronizando ? 'Sincronizando...' : 'Sincronizado'}
+                                        {ultimaSync && !sincronizando && <span>- {ultimaSync.toLocaleTimeString('pt-BR')}</span>}
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button onClick={() => setDarkMode(!darkMode)} className="p-2 bg-purple-500 text-white rounded-xl">
+                                        <Icon name={darkMode ? 'sun' : 'moon'} />
+                                    </button>
+                                    <button onClick={fazerLogout} className="p-2 bg-red-500 text-white rounded-xl text-sm" title="Sair">
+                                        🚪
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Cards Resumo */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div className="bg-gradient-to-br from-green-400 to-green-600 rounded-2xl p-4 text-white">
+                                <p className="text-xs opacity-80">Saldo Contas</p>
+                                <p className="text-lg font-bold">{formatarMoeda(saldoContas)}</p>
+                            </div>
+                            <div className="bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl p-4 text-white">
+                                <p className="text-xs opacity-80">Receitas</p>
+                                <p className="text-lg font-bold">{formatarMoeda(totalReceitas)}</p>
+                            </div>
+                            <div className="bg-gradient-to-br from-red-400 to-red-600 rounded-2xl p-4 text-white">
+                                <p className="text-xs opacity-80">Despesas</p>
+                                <p className="text-lg font-bold">{formatarMoeda(totalDespesas)}</p>
+                            </div>
+                            <div className="bg-gradient-to-br from-purple-400 to-purple-600 rounded-2xl p-4 text-white">
+                                <p className="text-xs opacity-80">Investido</p>
+                                <p className="text-lg font-bold">{formatarMoeda(totalInvestido - totalResgatado)}</p>
+                            </div>
+                        </div>
+
+                        {/* Navegacao */}
+                        <div className={`${cardClass} rounded-2xl shadow p-2 flex gap-1 overflow-x-auto`}>
+                            {['dashboard', 'calendario', 'contas', 'financas', 'investimentos'].map(tab => (
+                                <button key={tab} onClick={() => setActiveTab(tab)}
+                                    className={`px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap ${activeTab === tab ? 'bg-purple-500 text-white' : 'hover:bg-gray-100'}`}>
+                                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Conteudo */}
+                        <div className={`${cardClass} rounded-2xl shadow-xl p-4`}>
+                            
+                            {/* DASHBOARD */}
+                            {activeTab === 'dashboard' && (
+                                <div className="space-y-4">
+                                    <h2 className="text-xl font-bold">Dashboard</h2>
+                                    <div className="grid md:grid-cols-3 gap-4">
+                                        <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4">
+                                            <h3 className="font-bold text-green-800 mb-2">Receitas</h3>
+                                            <p className="flex justify-between text-sm"><span>Recebidas:</span><span className="font-bold text-green-600">{formatarMoeda(totalReceitas)}</span></p>
+                                            <p className="flex justify-between text-sm"><span>Pendentes:</span><span className="font-bold text-amber-600">{formatarMoeda(receitasPendentes)}</span></p>
+                                        </div>
+                                        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
+                                            <h3 className="font-bold text-red-800 mb-2">Despesas</h3>
+                                            <p className="flex justify-between text-sm"><span>Pagas:</span><span className="font-bold text-red-600">{formatarMoeda(totalDespesas)}</span></p>
+                                            <p className="flex justify-between text-sm"><span>Pendentes:</span><span className="font-bold text-amber-600">{formatarMoeda(despesasPendentes)}</span></p>
+                                        </div>
+                                        <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4">
+                                            <h3 className="font-bold text-purple-800 mb-2">Investimentos</h3>
+                                            <p className="flex justify-between text-sm"><span>Aplicado:</span><span className="font-bold text-purple-600">{formatarMoeda(totalInvestido)}</span></p>
+                                            <p className="flex justify-between text-sm"><span>Resgatado:</span><span className="font-bold text-green-600">{formatarMoeda(totalResgatado)}</span></p>
+                                        </div>
+                                    </div>
+                                    <div className={`rounded-xl p-4 ${(saldoContas - despesasPendentes) >= 0 ? 'bg-green-100 border-2 border-green-300' : 'bg-red-100 border-2 border-red-300'}`}>
+                                        <p className="text-sm">Saldo apos pagar pendentes:</p>
+                                        <p className={`text-2xl font-bold ${(saldoContas - despesasPendentes) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {formatarMoeda(saldoContas - despesasPendentes)}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* CALENDARIO */}
+                            {activeTab === 'calendario' && (
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-center">
+                                        <h2 className="text-xl font-bold">Calendario</h2>
+                                        <button onClick={() => { setMesAtual(new Date().getMonth()); setAnoAtual(new Date().getFullYear()); }} className="px-3 py-1 bg-purple-500 text-white rounded-lg text-sm">Hoje</button>
+                                    </div>
+                                    <div className="flex justify-between items-center bg-purple-100 rounded-xl p-3">
+                                        <button onClick={() => mesAtual === 0 ? (setMesAtual(11), setAnoAtual(anoAtual-1)) : setMesAtual(mesAtual-1)} className="p-2"><Icon name="chevronLeft" /></button>
+                                        <span className="font-bold">{mesesNomes[mesAtual]} {anoAtual}</span>
+                                        <button onClick={() => mesAtual === 11 ? (setMesAtual(0), setAnoAtual(anoAtual+1)) : setMesAtual(mesAtual+1)} className="p-2"><Icon name="chevronRight" /></button>
+                                    </div>
+                                    <div className="grid grid-cols-7 gap-1">
+                                        {diasSemana.map(d => <div key={d} className="text-center font-bold text-xs py-1">{d}</div>)}
+                                        {Array(getPrimeiroDia(mesAtual, anoAtual)).fill(0).map((_, i) => <div key={'e'+i}></div>)}
+                                        {Array(getDiasNoMes(mesAtual, anoAtual)).fill(0).map((_, i) => {
+                                            const dia = i + 1;
+                                            const trans = getTransDia(dia);
+                                            const rec = trans.filter(t => t.tipo === 'receita').reduce((a,t) => a + t.valor, 0);
+                                            const desp = trans.filter(t => t.tipo === 'despesa').reduce((a,t) => a + t.valor, 0);
+                                            const pend = trans.some(t => !t.pago);
+                                            const hoje = dia === new Date().getDate() && mesAtual === new Date().getMonth() && anoAtual === new Date().getFullYear();
+                                            return (
+                                                <div key={dia} onClick={() => setDiaSelecionado(dia === diaSelecionado ? null : dia)}
+                                                    className={`min-h-[50px] border rounded-lg p-1 cursor-pointer text-xs ${hoje ? 'border-purple-500 bg-purple-50' : 'border-gray-200'} ${diaSelecionado === dia ? 'ring-2 ring-purple-400' : ''}`}>
+                                                    <span className={`font-bold ${hoje ? 'text-purple-600' : ''}`}>{dia}</span>
+                                                    {rec > 0 && <div className="bg-green-100 text-green-700 rounded px-1 truncate">+{rec.toFixed(0)}</div>}
+                                                    {desp > 0 && <div className={`rounded px-1 truncate ${pend ? 'bg-orange-200 text-orange-700 font-bold' : 'bg-red-100 text-red-700'}`}>-{desp.toFixed(0)}</div>}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    {diaSelecionado && (
+                                        <div className="bg-purple-50 rounded-xl p-4">
+                                            <h3 className="font-bold mb-2">Dia {diaSelecionado}</h3>
+                                            {getTransDia(diaSelecionado).map(t => {
+                                                const conta = contas.find(c => c.id === t.contaId);
+                                                return (
+                                                    <div key={t.id} className="flex justify-between items-center bg-white rounded-lg p-2 mb-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <button onClick={() => abrirModalBaixa(t)}
+                                                                className={`w-8 h-8 rounded-full flex items-center justify-center ${t.pago ? 'bg-green-500 text-white' : 'bg-orange-100 border-2 border-orange-400 text-orange-500'}`}>
+                                                                <Icon name={t.pago ? 'check' : 'circle'} className="w-4 h-4" />
+                                                            </button>
+                                                            <div>
+                                                                <span className="text-sm">{t.descricao}</span>
+                                                                <p className="text-xs text-gray-500">{conta?.nome || 'Sem conta'}</p>
+                                                            </div>
+                                                        </div>
+                                                        <span className={`text-sm font-bold ${t.tipo === 'receita' ? 'text-green-600' : 'text-red-600'}`}>
+                                                            {t.tipo === 'receita' ? '+' : '-'}{formatarMoeda(t.valor)}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })}
+                                            {getTransDia(diaSelecionado).length === 0 && <p className="text-gray-500 text-sm">Nenhuma transacao</p>}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* CONTAS */}
+                            {activeTab === 'contas' && (
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-center">
+                                        <h2 className="text-xl font-bold">Contas</h2>
+                                        <button onClick={() => setMostrarFormConta(!mostrarFormConta)} className="px-3 py-2 bg-purple-500 text-white rounded-xl text-sm flex items-center gap-1">
+                                            <Icon name="plus" className="w-4 h-4" /> Nova
+                                        </button>
+                                    </div>
+                                    {mostrarFormConta && (
+                                        <div className="bg-gray-50 rounded-xl p-4 grid grid-cols-1 md:grid-cols-4 gap-2">
+                                            <input placeholder="Nome" value={formConta.nome} onChange={e => setFormConta({...formConta, nome: e.target.value})} className="px-3 py-2 border rounded-lg text-sm" />
+                                            <input type="number" placeholder="Saldo" value={formConta.saldoInicial} onChange={e => setFormConta({...formConta, saldoInicial: e.target.value})} className="px-3 py-2 border rounded-lg text-sm" />
+                                            <select value={formConta.tipo} onChange={e => setFormConta({...formConta, tipo: e.target.value})} className="px-3 py-2 border rounded-lg text-sm">
+                                                <option value="corrente">Corrente</option>
+                                                <option value="poupanca">Poupanca</option>
+                                            </select>
+                                            <button onClick={adicionarConta} className="px-4 py-2 bg-green-500 text-white rounded-lg text-sm">Criar</button>
+                                        </div>
+                                    )}
+                                    <div className="grid md:grid-cols-3 gap-4">
+                                        {contas.map(c => (
+                                            <div key={c.id} className="bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl p-4 text-white">
+                                                <div className="flex justify-between mb-2">
+                                                    <div>
+                                                        <h3 className="font-bold">{c.nome}</h3>
+                                                        <p className="text-xs opacity-80">{c.tipo}</p>
+                                                    </div>
+                                                    <button onClick={() => excluirConta(c.id)} className="p-1 hover:bg-white/20 rounded">
+                                                        <Icon name="trash" className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                                {editandoConta === c.id ? (
+                                                    <div>
+                                                        <input type="number" value={novoSaldoConta} onChange={e => setNovoSaldoConta(e.target.value)} className="w-full px-2 py-1 rounded text-black text-sm mb-2" />
+                                                        <div className="flex gap-2">
+                                                            <button onClick={() => editarSaldoConta(c.id, novoSaldoConta)} className="flex-1 py-1 bg-green-500 rounded text-sm">Salvar</button>
+                                                            <button onClick={() => setEditandoConta(null)} className="flex-1 py-1 bg-gray-500 rounded text-sm">Cancelar</button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex justify-between items-center">
+                                                        <p className="text-xl font-bold">{formatarMoeda(c.saldo)}</p>
+                                                        <button onClick={() => { setEditandoConta(c.id); setNovoSaldoConta(c.saldo.toString()); }} className="p-1 hover:bg-white/20 rounded">
+                                                            <Icon name="edit" className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {contas.length === 0 && (
+                                        <div className="text-center py-8 text-gray-500">
+                                            <p>Nenhuma conta cadastrada</p>
+                                            <p className="text-sm">Crie uma conta para comecar!</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* FINANCAS */}
+                            {activeTab === 'financas' && (
+                                <div className="space-y-4">
+                                    <h2 className="text-xl font-bold">Financas</h2>
+                                    
+                                    <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+                                        <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
+                                            <select value={formTransacao.tipo} onChange={e => setFormTransacao({...formTransacao, tipo: e.target.value})} 
+                                                className={`px-3 py-2 border rounded-lg text-sm ${formTransacao.tipo === 'receita' ? 'bg-green-100' : 'bg-red-100'}`}>
+                                                <option value="despesa">Despesa</option>
+                                                <option value="receita">Receita</option>
+                                            </select>
+                                            <input placeholder="Descricao" value={formTransacao.descricao} onChange={e => setFormTransacao({...formTransacao, descricao: e.target.value})} className="px-3 py-2 border rounded-lg text-sm" />
+                                            <input type="number" placeholder="Valor" value={formTransacao.valor} onChange={e => setFormTransacao({...formTransacao, valor: e.target.value})} className="px-3 py-2 border rounded-lg text-sm" />
+                                            <select value={formTransacao.categoria} onChange={e => setFormTransacao({...formTransacao, categoria: e.target.value})} className="px-3 py-2 border rounded-lg text-sm">
+                                                <option value="">Categoria</option>
+                                                {categorias.map(c => <option key={c} value={c}>{c}</option>)}
+                                            </select>
+                                            <select value={formTransacao.contaId || ''} onChange={e => setFormTransacao({...formTransacao, contaId: e.target.value || null})} className="px-3 py-2 border rounded-lg text-sm bg-blue-50">
+                                                <option value="">Conta (opcional)</option>
+                                                {contas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                                            </select>
+                                            <input type="date" value={formTransacao.data} onChange={e => setFormTransacao({...formTransacao, data: e.target.value})} className="px-3 py-2 border rounded-lg text-sm" />
+                                        </div>
+                                        <div className="flex gap-2 flex-wrap">
+                                            <label className="flex items-center gap-2 px-3 py-2 border rounded-lg text-sm cursor-pointer">
+                                                <input type="checkbox" checked={formTransacao.pago} onChange={e => setFormTransacao({...formTransacao, pago: e.target.checked})} /> Ja pago
+                                            </label>
+                                            <button onClick={adicionarTransacao} className={`px-4 py-2 text-white rounded-lg text-sm ${formTransacao.tipo === 'receita' ? 'bg-green-500' : 'bg-red-500'}`}>
+                                                <Icon name="plus" className="w-4 h-4 inline mr-1" /> Adicionar
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex gap-2 flex-wrap">
+                                        {['todas', 'pagas', 'pendentes'].map(f => (
+                                            <button key={f} onClick={() => setFiltroFinanceiro(f)} className={`px-3 py-1 rounded-lg text-sm ${filtroFinanceiro === f ? 'bg-purple-500 text-white' : 'bg-gray-100'}`}>{f}</button>
+                                        ))}
+                                        {['todos', 'receitas', 'despesas'].map(f => (
+                                            <button key={f} onClick={() => setFiltroTipo(f)} className={`px-3 py-1 rounded-lg text-sm ${filtroTipo === f ? 'bg-purple-500 text-white' : 'bg-gray-100'}`}>{f}</button>
+                                        ))}
+                                    </div>
+                                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                                        {transacoes.filter(t => {
+                                            if (filtroFinanceiro === 'pagas' && !t.pago) return false;
+                                            if (filtroFinanceiro === 'pendentes' && t.pago) return false;
+                                            if (filtroTipo === 'receitas' && t.tipo !== 'receita') return false;
+                                            if (filtroTipo === 'despesas' && t.tipo !== 'despesa') return false;
+                                            return true;
+                                        }).sort((a,b) => new Date(b.data) - new Date(a.data)).map(t => {
+                                            const conta = contas.find(c => c.id === t.contaId);
+                                            const estaEditando = editandoTransacao === t.id;
+                                            
+                                            if (estaEditando) {
+                                                return (
+                                                    <div key={t.id} className="p-4 rounded-xl border-2 border-blue-400 bg-blue-50">
+                                                        <p className="font-bold text-blue-800 mb-3">Editando Transação</p>
+                                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-3">
+                                                            <select value={formEdicao.tipo} onChange={e => setFormEdicao({...formEdicao, tipo: e.target.value})}
+                                                                className={`px-3 py-2 border rounded-lg text-sm ${formEdicao.tipo === 'receita' ? 'bg-green-100' : 'bg-red-100'}`}>
+                                                                <option value="despesa">Despesa</option>
+                                                                <option value="receita">Receita</option>
+                                                            </select>
+                                                            <input value={formEdicao.descricao} onChange={e => setFormEdicao({...formEdicao, descricao: e.target.value})} 
+                                                                className="px-3 py-2 border rounded-lg text-sm" placeholder="Descrição" />
+                                                            <input type="number" value={formEdicao.valor} onChange={e => setFormEdicao({...formEdicao, valor: e.target.value})} 
+                                                                className="px-3 py-2 border rounded-lg text-sm" placeholder="Valor" />
+                                                            <select value={formEdicao.categoria} onChange={e => setFormEdicao({...formEdicao, categoria: e.target.value})}
+                                                                className="px-3 py-2 border rounded-lg text-sm">
+                                                                {categorias.map(c => <option key={c} value={c}>{c}</option>)}
+                                                            </select>
+                                                            <select value={formEdicao.contaId || ''} onChange={e => setFormEdicao({...formEdicao, contaId: e.target.value || null})}
+                                                                className="px-3 py-2 border rounded-lg text-sm">
+                                                                <option value="">Sem conta</option>
+                                                                {contas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                                                            </select>
+                                                            <input type="date" value={formEdicao.data} onChange={e => setFormEdicao({...formEdicao, data: e.target.value})} 
+                                                                className="px-3 py-2 border rounded-lg text-sm" />
+                                                        </div>
+                                                        <div className="flex gap-2">
+                                                            <button onClick={() => salvarEdicao(t)} className="px-4 py-2 bg-green-500 text-white rounded-lg text-sm">Salvar</button>
+                                                            <button onClick={cancelarEdicao} className="px-4 py-2 bg-gray-400 text-white rounded-lg text-sm">Cancelar</button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+                                            
+                                            return (
+                                                <div key={t.id} className={`flex items-center gap-3 p-3 rounded-xl border-2 text-sm ${t.tipo === 'receita' ? (t.pago ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-300') : (t.pago ? 'bg-red-50 border-red-200' : 'bg-orange-50 border-orange-300')}`}>
+                                                    <button 
+                                                        onClick={() => abrirModalBaixa(t)} 
+                                                        title={t.pago ? 'Desmarcar como pago' : 'Dar baixa'}
+                                                        className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${t.pago ? 'bg-green-500 text-white' : 'bg-orange-100 border-2 border-orange-400 text-orange-500 hover:bg-orange-200'}`}
+                                                    >
+                                                        <Icon name={t.pago ? 'check' : 'circle'} className="w-5 h-5" />
+                                                    </button>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="font-medium truncate">{t.descricao}</p>
+                                                        <p className="text-xs text-gray-500">{t.categoria} | {conta?.nome || 'Sem conta'} | {formatarData(t.data)}</p>
+                                                    </div>
+                                                    <span className={`font-bold ${t.tipo === 'receita' ? 'text-green-600' : 'text-red-600'}`}>
+                                                        {t.tipo === 'receita' ? '+' : '-'}{formatarMoeda(t.valor)}
+                                                    </span>
+                                                    <button onClick={() => iniciarEdicao(t)} className="text-blue-500 p-1" title="Editar">
+                                                        <Icon name="edit" className="w-5 h-5" />
+                                                    </button>
+                                                    <button onClick={() => excluirTransacao(t.id)} className="text-red-400 p-1" title="Excluir">
+                                                        <Icon name="trash" className="w-5 h-5" />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* INVESTIMENTOS */}
+                            {activeTab === 'investimentos' && (
+                                <div className="space-y-4">
+                                    <h2 className="text-xl font-bold">Investimentos</h2>
+                                    <div className="grid grid-cols-3 gap-3">
+                                        <div className="bg-blue-100 rounded-xl p-3 text-center">
+                                            <p className="text-xs text-blue-700">Aplicado</p>
+                                            <p className="font-bold text-blue-600">{formatarMoeda(totalInvestido)}</p>
+                                        </div>
+                                        <div className="bg-green-100 rounded-xl p-3 text-center">
+                                            <p className="text-xs text-green-700">Resgatado</p>
+                                            <p className="font-bold text-green-600">{formatarMoeda(totalResgatado)}</p>
+                                        </div>
+                                        <div className="bg-purple-100 rounded-xl p-3 text-center">
+                                            <p className="text-xs text-purple-700">Saldo</p>
+                                            <p className="font-bold text-purple-600">{formatarMoeda(totalInvestido - totalResgatado)}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    {contas.length === 0 ? (
+                                        <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 text-center">
+                                            <p className="text-amber-800 font-medium">Crie uma conta para vincular investimentos</p>
+                                            <button onClick={() => setActiveTab('contas')} className="mt-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm">Ir para Contas</button>
+                                        </div>
+                                    ) : (
+                                        <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+                                            <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
+                                                <select value={formInvestimento.tipo} onChange={e => setFormInvestimento({...formInvestimento, tipo: e.target.value})}
+                                                    className={`px-3 py-2 border rounded-lg text-sm ${formInvestimento.tipo === 'resgate' ? 'bg-green-100' : 'bg-blue-100'}`}>
+                                                    <option value="aplicacao">Aplicar</option>
+                                                    <option value="resgate">Resgatar</option>
+                                                </select>
+                                                <input placeholder="Descricao" value={formInvestimento.descricao} onChange={e => setFormInvestimento({...formInvestimento, descricao: e.target.value})} className="px-3 py-2 border rounded-lg text-sm" />
+                                                <input type="number" placeholder="Valor" value={formInvestimento.valor} onChange={e => setFormInvestimento({...formInvestimento, valor: e.target.value})} className="px-3 py-2 border rounded-lg text-sm" />
+                                                <select value={formInvestimento.categoria} onChange={e => setFormInvestimento({...formInvestimento, categoria: e.target.value})} className="px-3 py-2 border rounded-lg text-sm">
+                                                    {categoriasInv.map(c => <option key={c} value={c}>{c}</option>)}
+                                                </select>
+                                                <select value={formInvestimento.contaId || ''} onChange={e => setFormInvestimento({...formInvestimento, contaId: e.target.value || null})} className="px-3 py-2 border rounded-lg text-sm bg-blue-50">
+                                                    <option value="">Selecione a Conta</option>
+                                                    {contas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                                                </select>
+                                                <input type="date" value={formInvestimento.data} onChange={e => setFormInvestimento({...formInvestimento, data: e.target.value})} className="px-3 py-2 border rounded-lg text-sm" />
+                                            </div>
+                                            <button onClick={adicionarInvestimento} className={`px-4 py-2 text-white rounded-lg text-sm ${formInvestimento.tipo === 'resgate' ? 'bg-green-500' : 'bg-blue-500'}`}>
+                                                <Icon name="plus" className="w-4 h-4 inline mr-1" />
+                                                {formInvestimento.tipo === 'aplicacao' ? 'Aplicar (sai da conta)' : 'Resgatar (entra na conta)'}
+                                            </button>
+                                        </div>
+                                    )}
+                                    
+                                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                                        {investimentos.sort((a,b) => new Date(b.data) - new Date(a.data)).map(inv => {
+                                            const conta = contas.find(c => c.id === inv.contaId);
+                                            return (
+                                                <div key={inv.id} className={`flex items-center gap-2 p-3 rounded-xl border-2 text-sm ${inv.tipo === 'aplicacao' ? 'bg-blue-50 border-blue-200' : 'bg-green-50 border-green-200'}`}>
+                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${inv.tipo === 'aplicacao' ? 'bg-blue-500' : 'bg-green-500'}`}>
+                                                        <Icon name={inv.tipo === 'aplicacao' ? 'arrowUp' : 'arrowDown'} className="w-4 h-4 text-white" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="font-medium truncate">{inv.descricao}</p>
+                                                        <p className="text-xs text-gray-500">{inv.categoria} | {conta?.nome || '-'} | {formatarData(inv.data)}</p>
+                                                    </div>
+                                                    <span className={`font-bold ${inv.tipo === 'aplicacao' ? 'text-blue-600' : 'text-green-600'}`}>
+                                                        {inv.tipo === 'aplicacao' ? '-' : '+'}{formatarMoeda(inv.valor)}
+                                                    </span>
+                                                    <button onClick={() => excluirInvestimento(inv)} className="text-red-400">
+                                                        <Icon name="trash" className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                        </div>
+                    </div>
+                    
+                    {/* Modal Dar Baixa */}
+                    {dandoBaixa && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                            <div className={`${cardClass} rounded-2xl shadow-2xl p-6 w-full max-w-md`}>
+                                <h3 className="text-xl font-bold mb-4">Dar Baixa</h3>
+                                
+                                <div className={`p-4 rounded-xl mb-4 ${dandoBaixa.tipo === 'receita' ? 'bg-green-50 border-2 border-green-200' : 'bg-red-50 border-2 border-red-200'}`}>
+                                    <p className="font-bold">{dandoBaixa.descricao}</p>
+                                    <p className={`text-2xl font-bold ${dandoBaixa.tipo === 'receita' ? 'text-green-600' : 'text-red-600'}`}>
+                                        {dandoBaixa.tipo === 'receita' ? '+' : '-'}{formatarMoeda(dandoBaixa.valor)}
+                                    </p>
+                                </div>
+                                
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium mb-2">Selecione a conta:</label>
+                                    <select 
+                                        value={contaBaixa || ''} 
+                                        onChange={e => setContaBaixa(e.target.value || null)}
+                                        className="w-full px-4 py-3 border-2 rounded-xl text-lg"
+                                    >
+                                        <option value="">Sem conta (apenas marcar)</option>
+                                        {contas.map(c => (
+                                            <option key={c.id} value={c.id}>
+                                                {c.nome} - {formatarMoeda(c.saldo)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {contaBaixa && (
+                                        <p className="text-sm text-gray-500 mt-2">
+                                            {dandoBaixa.tipo === 'despesa' 
+                                                ? `Será debitado da conta selecionada`
+                                                : `Será creditado na conta selecionada`
+                                            }
+                                        </p>
+                                    )}
+                                </div>
+                                
+                                <div className="flex gap-3">
+                                    <button 
+                                        onClick={() => confirmarBaixa(dandoBaixa, contaBaixa)}
+                                        className={`flex-1 py-3 text-white rounded-xl font-bold ${dandoBaixa.tipo === 'receita' ? 'bg-green-500' : 'bg-red-500'}`}
+                                    >
+                                        Confirmar Baixa
+                                    </button>
+                                    <button 
+                                        onClick={() => { setDandoBaixa(null); setContaBaixa(null); }}
+                                        className="flex-1 py-3 bg-gray-300 text-gray-700 rounded-xl font-bold"
+                                    >
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+    
+    <!-- Banner de Instalação PWA -->
+    <div id="install-banner" class="install-banner" style="display: none;">
+        <button class="dismiss-btn" onclick="dismissInstall()">✕</button>
+        <div class="install-banner-text">
+            <div class="install-banner-title">📱 Instalar Financeiro Coutinho</div>
+            <div class="install-banner-sub">Acesse mais rápido pela tela inicial</div>
+        </div>
+        <button class="install-btn" onclick="installApp()">Instalar</button>
+    </div>
+    
+    <script>
+        // PWA Install Logic
+        let deferredPrompt;
+        const installBanner = document.getElementById('install-banner');
+        
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            // Verifica se já foi dispensado
+            if (!localStorage.getItem('pwa-dismissed')) {
+                installBanner.style.display = 'flex';
+            }
+        });
+        
+        function installApp() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('App instalado');
+                    }
+                    deferredPrompt = null;
+                    installBanner.style.display = 'none';
+                });
+            } else {
+                // Fallback para iOS
+                alert('Para instalar:\n\n📱 iPhone/iPad:\n1. Toque no ícone de compartilhar (↑)\n2. Toque em "Adicionar à Tela de Início"\n\n📱 Android:\n1. Toque nos 3 pontinhos (⋮)\n2. Toque em "Adicionar à tela inicial"');
+            }
+        }
+        
+        function dismissInstall() {
+            installBanner.style.display = 'none';
+            localStorage.setItem('pwa-dismissed', 'true');
+        }
+        
+        // Verifica se está rodando como PWA instalado
+        if (window.matchMedia('(display-mode: standalone)').matches) {
+            installBanner.style.display = 'none';
+        }
+        
+        // Para iOS - mostra banner se não estiver instalado
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const isStandalone = window.navigator.standalone;
+        
+        if (isIOS && !isStandalone && !localStorage.getItem('pwa-dismissed')) {
+            setTimeout(() => {
+                installBanner.style.display = 'flex';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
