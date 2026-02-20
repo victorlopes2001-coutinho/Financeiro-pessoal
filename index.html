@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Financeiro Coutinho</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#7c3aed">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Financeiro">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="Financeiro Coutinho">
+    
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="icon" type="image/png" href="icon-192.png">
+    <link rel="manifest" href="manifest.json">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
+    <style>
+        body { margin: 0; padding: 0; }
+        .install-banner {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: linear-gradient(135deg, #7c3aed, #6366f1);
+            color: white; padding: 16px; display: flex;
+            justify-content: space-between; align-items: center;
+            gap: 12px; z-index: 9999; box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+            animation: slideUp 0.3s ease;
+        }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        .install-btn { padding: 10px 24px; border-radius: 25px; font-weight: bold; cursor: pointer; border: none; background: white; color: #7c3aed; }
+        .dismiss-btn { padding: 8px; background: transparent; border: none; color: white; cursor: pointer; font-size: 20px; opacity: 0.8; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Firebase Config
+        const firebaseConfig = {
+            apiKey: "AIzaSyDQozXEXyYd65kGC_XHCEiQYjuksiK87Mk",
+            authDomain: "financeiro-pessoal-coutinho.firebaseapp.com",
+            projectId: "financeiro-pessoal-coutinho",
+            storageBucket: "financeiro-pessoal-coutinho.firebasestorage.app",
+            messagingSenderId: "763738036354",
+            appId: "1:763738036354:web:aa7d827e3bcf43c5df3c9b"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        const formatarMoeda = (valor) => valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const formatarData = (dataString) => {
+            if (!dataString) return '';
+            const [ano, mes, dia] = dataString.split('-');
+            return `${dia}/${mes}/${ano}`;
+        };
+        const getDataHoje = () => {
+            const hoje = new Date();
+            return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+        };
+
+        const Icon = ({ name, className = "w-5 h-5" }) => {
+            const icons = {
+                plus: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>,
+                trash: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>,
+                check: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>,
+                circle: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" strokeWidth={2} /></svg>,
+                edit: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>,
+                chevronLeft: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>,
+                chevronRight: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>,
+                moon: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>,
+                sun: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>,
+                x: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>,
+                search: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>,
+                refresh: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>,
+            };
+            return icons[name] || null;
+        };
+
+        const App = () => {
+            // Auth states
+            const [autenticado, setAutenticado] = useState(false);
+            const [usuarioAtual, setUsuarioAtual] = useState(null);
+            const [senhaDigitada, setSenhaDigitada] = useState('');
+            const [mostrarSenha, setMostrarSenha] = useState(false);
+            const [usuarioSelecionado, setUsuarioSelecionado] = useState('victor');
+            const [mostrarTrocarSenha, setMostrarTrocarSenha] = useState(false);
+            const [senhaAtual, setSenhaAtual] = useState('');
+            const [novaSenha, setNovaSenha] = useState('');
+            const [confirmarSenha, setConfirmarSenha] = useState('');
+            
+            const [senhasUsuarios, setSenhasUsuarios] = useState(() => {
+                const salvas = localStorage.getItem('fin-senhas');
+                return salvas ? JSON.parse(salvas) : { victor: "coutinho2026", salluany: "salluany2026", welison: "welison2026" };
+            });
+            
+            const USUARIOS = {
+                victor: { nome: "Victor", cor: "#7c3aed" },
+                salluany: { nome: "Salluany", cor: "#ec4899" },
+                welison: { nome: "Welison", cor: "#3b82f6" }
+            };
+
+            // App states
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const [darkMode, setDarkMode] = useState(false);
+            const [sincronizando, setSincronizando] = useState(false);
+            const [ultimaSync, setUltimaSync] = useState(null);
+
+            // Data states
+            const [transacoes, setTransacoes] = useState([]);
+            const [contas, setContas] = useState([]);
+            const [investimentos, setInvestimentos] = useState([]);
+            const [parcelas, setParcelas] = useState([]);
+            const [recorrentes, setRecorrentes] = useState([]);
+
+            // Form states
+            const [formTransacao, setFormTransacao] = useState({ tipo: 'despesa', descricao: '', valor: '', categoria: '', data: getDataHoje(), pago: false, contaId: null });
+            const [formConta, setFormConta] = useState({ nome: '', saldoInicial: '', tipo: 'corrente' });
+            const [formInvestimento, setFormInvestimento] = useState({ tipo: 'aplicacao', descricao: '', valor: '', categoria: 'Renda Fixa', data: getDataHoje(), contaId: null });
+            const [formParcela, setFormParcela] = useState({ descricao: '', valorTotal: '', numParcelas: '', diaVencimento: '', categoria: 'Outros', contaId: null });
+            const [formRecorrente, setFormRecorrente] = useState({ tipo: 'despesa', descricao: '', valor: '', categoria: '', diaVencimento: '', contaId: null });
+
+            // UI states
+            const [mostrarFormConta, setMostrarFormConta] = useState(false);
+            const [mostrarFormParcela, setMostrarFormParcela] = useState(false);
+            const [mostrarFormRecorrente, setMostrarFormRecorrente] = useState(false);
+            const [editandoConta, setEditandoConta] = useState(null);
+            const [novoSaldoConta, setNovoSaldoConta] = useState('');
+            const [editandoTransacao, setEditandoTransacao] = useState(null);
+            const [formEdicao, setFormEdicao] = useState({});
+            const [dandoBaixa, setDandoBaixa] = useState(null);
+            const [contaBaixa, setContaBaixa] = useState(null);
+
+            // Filter states
+            const [filtroFinanceiro, setFiltroFinanceiro] = useState('todas');
+            const [filtroTipo, setFiltroTipo] = useState('todos');
+            const [busca, setBusca] = useState('');
+            const [dataInicio, setDataInicio] = useState('');
+            const [dataFim, setDataFim] = useState('');
+            const [mostrarFiltros, setMostrarFiltros] = useState(false);
+
+            // Calendar states
+            const [mesAtual, setMesAtual] = useState(new Date().getMonth());
+            const [anoAtual, setAnoAtual] = useState(new Date().getFullYear());
+
+            const categorias = ['Alimentacao', 'Transporte', 'Moradia', 'Saude', 'Educacao', 'Lazer', 'Vestuario', 'Salario', 'Contas', 'Cartao', 'Outros'];
+            const categoriasInv = ['Renda Fixa', 'Acoes', 'FIIs', 'Tesouro Direto', 'CDB', 'LCI/LCA', 'Criptomoedas', 'Poupanca', 'Outros'];
+            const mesesNomes = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+            // Firebase listeners
+            useEffect(() => {
+                if (!usuarioAtual) return;
+                setSincronizando(true);
+                const prefixo = `${usuarioAtual}_`;
+                
+                const unsubs = [
+                    db.collection(prefixo + 'transacoes').onSnapshot(snap => {
+                        setTransacoes(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                        setUltimaSync(new Date());
+                        setSincronizando(false);
+                    }),
+                    db.collection(prefixo + 'contas').onSnapshot(snap => setContas(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })))),
+                    db.collection(prefixo + 'investimentos').onSnapshot(snap => setInvestimentos(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })))),
+                    db.collection(prefixo + 'parcelas').onSnapshot(snap => setParcelas(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })))),
+                    db.collection(prefixo + 'recorrentes').onSnapshot(snap => setRecorrentes(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))))
+                ];
+                
+                return () => unsubs.forEach(u => u());
+            }, [usuarioAtual]);
+
+            // Calculos
+            const totalReceitas = transacoes.filter(t => t.tipo === 'receita' && t.pago).reduce((a, t) => a + t.valor, 0);
+            const totalDespesas = transacoes.filter(t => t.tipo === 'despesa' && t.pago).reduce((a, t) => a + t.valor, 0);
+            const despesasPendentes = transacoes.filter(t => t.tipo === 'despesa' && !t.pago).reduce((a, t) => a + t.valor, 0);
+            const saldoContas = contas.reduce((a, c) => a + c.saldo, 0);
+            const totalInvestido = investimentos.filter(i => i.tipo === 'aplicacao').reduce((a, i) => a + i.valor, 0) - investimentos.filter(i => i.tipo === 'resgate').reduce((a, i) => a + i.valor, 0);
+            const totalParcelasPendentes = parcelas.reduce((a, p) => a + ((p.numParcelas - p.parcelasPagas) * p.valorParcela), 0);
+
+            // Filtrar transações
+            const transacoesFiltradas = transacoes.filter(t => {
+                if (busca && !t.descricao.toLowerCase().includes(busca.toLowerCase())) return false;
+                if (filtroFinanceiro === 'pagas' && !t.pago) return false;
+                if (filtroFinanceiro === 'pendentes' && t.pago) return false;
+                if (filtroTipo === 'receitas' && t.tipo !== 'receita') return false;
+                if (filtroTipo === 'despesas' && t.tipo !== 'despesa') return false;
+                if (dataInicio && t.data < dataInicio) return false;
+                if (dataFim && t.data > dataFim) return false;
+                return true;
+            }).sort((a, b) => b.data.localeCompare(a.data));
+
+            // Funções CRUD
+            const prefixo = () => `${usuarioAtual}_`;
+
+            const adicionarTransacao = async () => {
+                if (!formTransacao.descricao || !formTransacao.valor) return alert('Preencha descrição e valor');
+                const valor = parseFloat(formTransacao.valor);
+                
+                if (formTransacao.pago && formTransacao.contaId) {
+                    const conta = contas.find(c => c.id === formTransacao.contaId);
+                    if (conta) {
+                        const novoSaldo = formTransacao.tipo === 'receita' ? conta.saldo + valor : conta.saldo - valor;
+                        await db.collection(prefixo() + 'contas').doc(formTransacao.contaId).update({ saldo: novoSaldo });
+                    }
+                }
+                
+                await db.collection(prefixo() + 'transacoes').add({ ...formTransacao, valor, categoria: formTransacao.categoria || 'Outros', criadoEm: new Date().toISOString() });
+                setFormTransacao({ tipo: 'despesa', descricao: '', valor: '', categoria: '', data: getDataHoje(), pago: false, contaId: formTransacao.contaId });
+            };
+
+            const excluirTransacao = async (id) => {
+                const t = transacoes.find(t => t.id === id);
+                if (!confirm('Excluir esta transação?')) return;
+                
+                if (t?.pago && t?.contaId) {
+                    const conta = contas.find(c => c.id === t.contaId);
+                    if (conta) {
+                        const novoSaldo = t.tipo === 'receita' ? conta.saldo - t.valor : conta.saldo + t.valor;
+                        await db.collection(prefixo() + 'contas').doc(t.contaId).update({ saldo: novoSaldo });
+                    }
+                }
+                await db.collection(prefixo() + 'transacoes').doc(id).delete();
+            };
+
+            const abrirModalBaixa = (t) => {
+                if (t.pago) {
+                    confirmarBaixa(t, t.contaId, true);
+                } else {
+                    setDandoBaixa(t);
+                    setContaBaixa(t.contaId || (contas.length > 0 ? contas[0].id : null));
+                }
+            };
+
+            const confirmarBaixa = async (t, contaId, estaDesmarcando = false) => {
+                const novoPago = !t.pago;
+                
+                if (contaId) {
+                    const conta = contas.find(c => c.id === contaId);
+                    if (conta) {
+                        let novoSaldo = conta.saldo;
+                        if (novoPago) {
+                            novoSaldo = t.tipo === 'receita' ? conta.saldo + t.valor : conta.saldo - t.valor;
+                        } else {
+                            novoSaldo = t.tipo === 'receita' ? conta.saldo - t.valor : conta.saldo + t.valor;
+                        }
+                        await db.collection(prefixo() + 'contas').doc(contaId).update({ saldo: novoSaldo });
+                    }
+                }
+                
+                await db.collection(prefixo() + 'transacoes').doc(t.id).update({ pago: novoPago, contaId: contaId || null });
+                setDandoBaixa(null);
+                setContaBaixa(null);
+            };
+
+            const iniciarEdicao = (t) => {
+                setEditandoTransacao(t.id);
+                setFormEdicao({ descricao: t.descricao, valor: t.valor.toString(), categoria: t.categoria, data: t.data, tipo: t.tipo, contaId: t.contaId });
+            };
+
+            const salvarEdicao = async (t) => {
+                if (!formEdicao.descricao || !formEdicao.valor) return alert('Preencha descrição e valor');
+                const novoValor = parseFloat(formEdicao.valor);
+                const diferencaValor = novoValor - t.valor;
+
+                if (t.pago && t.contaId && diferencaValor !== 0) {
+                    const conta = contas.find(c => c.id === t.contaId);
+                    if (conta) {
+                        const novoSaldo = t.tipo === 'receita' ? conta.saldo + diferencaValor : conta.saldo - diferencaValor;
+                        await db.collection(prefixo() + 'contas').doc(t.contaId).update({ saldo: novoSaldo });
+                    }
+                }
+
+                await db.collection(prefixo() + 'transacoes').doc(t.id).update({ ...formEdicao, valor: novoValor });
+                setEditandoTransacao(null);
+                setFormEdicao({});
+            };
+
+            // Contas
+            const adicionarConta = async () => {
+                if (!formConta.nome || !formConta.saldoInicial) return alert('Preencha os campos');
+                await db.collection(prefixo() + 'contas').add({ nome: formConta.nome, saldo: parseFloat(formConta.saldoInicial), tipo: formConta.tipo, criadoEm: new Date().toISOString() });
+                setFormConta({ nome: '', saldoInicial: '', tipo: 'corrente' });
+                setMostrarFormConta(false);
+            };
+
+            const excluirConta = async (id) => {
+                if (confirm('Excluir esta conta?')) await db.collection(prefixo() + 'contas').doc(id).delete();
+            };
+
+            const editarSaldoConta = async (id, novoSaldo) => {
+                await db.collection(prefixo() + 'contas').doc(id).update({ saldo: parseFloat(novoSaldo) });
+                setEditandoConta(null);
+                setNovoSaldoConta('');
+            };
+
+            // Investimentos
+            const adicionarInvestimento = async () => {
+                if (!formInvestimento.descricao || !formInvestimento.valor) return alert('Preencha descrição e valor');
+                if (!formInvestimento.contaId) return alert('Selecione uma conta');
+                
+                const valor = parseFloat(formInvestimento.valor);
+                const conta = contas.find(c => c.id === formInvestimento.contaId);
+                
+                if (conta) {
+                    const novoSaldo = formInvestimento.tipo === 'aplicacao' ? conta.saldo - valor : conta.saldo + valor;
+                    await db.collection(prefixo() + 'contas').doc(formInvestimento.contaId).update({ saldo: novoSaldo });
+                }
+                
+                await db.collection(prefixo() + 'investimentos').add({ ...formInvestimento, valor, criadoEm: new Date().toISOString() });
+                setFormInvestimento({ tipo: 'aplicacao', descricao: '', valor: '', categoria: 'Renda Fixa', data: getDataHoje(), contaId: formInvestimento.contaId });
+            };
+
+            const excluirInvestimento = async (inv) => {
+                if (!confirm('Excluir? O saldo será revertido.')) return;
+                const conta = contas.find(c => c.id === inv.contaId);
+                if (conta) {
+                    const novoSaldo = inv.tipo === 'aplicacao' ? conta.saldo + inv.valor : conta.saldo - inv.valor;
+                    await db.collection(prefixo() + 'contas').doc(inv.contaId).update({ saldo: novoSaldo });
+                }
+                await db.collection(prefixo() + 'investimentos').doc(inv.id).delete();
+            };
+
+            // Parcelas
+            const adicionarParcela = async () => {
+                if (!formParcela.descricao || !formParcela.valorTotal || !formParcela.numParcelas || !formParcela.diaVencimento) {
+                    return alert('Preencha todos os campos');
+                }
+                
+                const valorTotal = parseFloat(formParcela.valorTotal);
+                const numParcelas = parseInt(formParcela.numParcelas);
+                const valorParcela = valorTotal / numParcelas;
+                
+                await db.collection(prefixo() + 'parcelas').add({
+                    descricao: formParcela.descricao,
+                    valorTotal,
+                    numParcelas,
+                    valorParcela,
+                    parcelasPagas: 0,
+                    diaVencimento: parseInt(formParcela.diaVencimento),
+                    categoria: formParcela.categoria || 'Outros',
+                    contaId: formParcela.contaId,
+                    criadoEm: new Date().toISOString()
+                });
+                
+                setFormParcela({ descricao: '', valorTotal: '', numParcelas: '', diaVencimento: '', categoria: 'Outros', contaId: null });
+                setMostrarFormParcela(false);
+            };
+
+            const pagarParcela = async (p) => {
+                if (p.parcelasPagas >= p.numParcelas) return alert('Todas as parcelas já foram pagas!');
+                
+                if (p.contaId) {
+                    const conta = contas.find(c => c.id === p.contaId);
+                    if (conta) {
+                        await db.collection(prefixo() + 'contas').doc(p.contaId).update({ saldo: conta.saldo - p.valorParcela });
+                    }
+                }
+                
+                await db.collection(prefixo() + 'parcelas').doc(p.id).update({ parcelasPagas: p.parcelasPagas + 1 });
+            };
+
+            const excluirParcela = async (id) => {
+                if (confirm('Excluir esta compra parcelada?')) await db.collection(prefixo() + 'parcelas').doc(id).delete();
+            };
+
+            // Recorrentes
+            const adicionarRecorrente = async () => {
+                if (!formRecorrente.descricao || !formRecorrente.valor || !formRecorrente.diaVencimento) {
+                    return alert('Preencha todos os campos');
+                }
+                
+                await db.collection(prefixo() + 'recorrentes').add({
+                    ...formRecorrente,
+                    valor: parseFloat(formRecorrente.valor),
+                    diaVencimento: parseInt(formRecorrente.diaVencimento),
+                    categoria: formRecorrente.categoria || 'Outros',
+                    criadoEm: new Date().toISOString()
+                });
+                
+                setFormRecorrente({ tipo: 'despesa', descricao: '', valor: '', categoria: '', diaVencimento: '', contaId: null });
+                setMostrarFormRecorrente(false);
+            };
+
+            const gerarTransacaoRecorrente = async (r) => {
+                const hoje = new Date();
+                const dataTransacao = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(r.diaVencimento).padStart(2, '0')}`;
+                
+                // Verificar se já existe transação com essa descrição e data este mês
+                const jaExiste = transacoes.some(t => t.descricao === r.descricao && t.data.substring(0, 7) === dataTransacao.substring(0, 7));
+                if (jaExiste) return alert('Já existe uma transação com essa descrição este mês!');
+                
+                await db.collection(prefixo() + 'transacoes').add({
+                    tipo: r.tipo,
+                    descricao: r.descricao,
+                    valor: r.valor,
+                    categoria: r.categoria,
+                    data: dataTransacao,
+                    pago: false,
+                    contaId: r.contaId,
+                    criadoEm: new Date().toISOString()
+                });
+                
+                alert('✅ Transação gerada com sucesso!');
+            };
+
+            const excluirRecorrente = async (id) => {
+                if (confirm('Excluir esta transação recorrente?')) await db.collection(prefixo() + 'recorrentes').doc(id).delete();
+            };
+
+            // Auth functions
+            const fazerLogin = () => {
+                if (senhaDigitada === senhasUsuarios[usuarioSelecionado]) {
+                    setAutenticado(true);
+                    setUsuarioAtual(usuarioSelecionado);
+                    localStorage.setItem('fin-auth', usuarioSelecionado);
+                } else {
+                    alert('Senha incorreta!');
+                }
+            };
+
+            useEffect(() => {
+                const auth = localStorage.getItem('fin-auth');
+                if (auth && USUARIOS[auth]) {
+                    setAutenticado(true);
+                    setUsuarioAtual(auth);
+                }
+            }, []);
+
+            const fazerLogout = () => {
+                localStorage.removeItem('fin-auth');
+                setAutenticado(false);
+                setUsuarioAtual(null);
+                setSenhaDigitada('');
+                setTransacoes([]);
+                setContas([]);
+                setInvestimentos([]);
+                setParcelas([]);
+                setRecorrentes([]);
+            };
+
+            const trocarSenha = () => {
+                if (senhaAtual !== senhasUsuarios[usuarioAtual]) return alert('Senha atual incorreta!');
+                if (novaSenha.length < 4) return alert('A nova senha deve ter pelo menos 4 caracteres!');
+                if (novaSenha !== confirmarSenha) return alert('As senhas não coincidem!');
+                
+                const novasSenhas = { ...senhasUsuarios, [usuarioAtual]: novaSenha };
+                setSenhasUsuarios(novasSenhas);
+                localStorage.setItem('fin-senhas', JSON.stringify(novasSenhas));
+                setMostrarTrocarSenha(false);
+                setSenhaAtual('');
+                setNovaSenha('');
+                setConfirmarSenha('');
+                alert('✅ Senha alterada com sucesso!');
+            };
+
+            const limparFiltros = () => {
+                setBusca('');
+                setDataInicio('');
+                setDataFim('');
+                setFiltroFinanceiro('todas');
+                setFiltroTipo('todos');
+            };
+
+            const bgClass = darkMode ? 'bg-gray-900 text-white' : 'bg-gradient-to-br from-slate-50 to-blue-50';
+            const cardClass = darkMode ? 'bg-gray-800' : 'bg-white';
+            const inputClass = darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-200';
+
+            // Tela de Login
+            if (!autenticado) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm">
+                            <div className="text-center mb-6">
+                                <div className="text-5xl mb-3">💰</div>
+                                <h1 className="text-2xl font-bold text-gray-800">Financeiro Coutinho</h1>
+                                <p className="text-gray-500 text-sm">Selecione seu usuário</p>
+                            </div>
+                            
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-3 gap-2">
+                                    {Object.entries(USUARIOS).map(([key, user]) => (
+                                        <button key={key} onClick={() => setUsuarioSelecionado(key)}
+                                            className={`p-3 rounded-xl border-2 transition-all ${usuarioSelecionado === key ? 'border-purple-500 bg-purple-50' : 'border-gray-200'}`}
+                                            style={usuarioSelecionado === key ? {borderColor: user.cor} : {}}>
+                                            <div className="text-2xl mb-1">{key === 'victor' ? '👨' : key === 'salluany' ? '👩' : '👤'}</div>
+                                            <div className="text-xs font-medium" style={{color: user.cor}}>{user.nome}</div>
+                                        </button>
+                                    ))}
+                                </div>
+                                
+                                <div className="relative">
+                                    <input type={mostrarSenha ? "text" : "password"} value={senhaDigitada}
+                                        onChange={(e) => setSenhaDigitada(e.target.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && fazerLogin()}
+                                        placeholder={`Senha de ${USUARIOS[usuarioSelecionado]?.nome}`}
+                                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none" />
+                                    <button onClick={() => setMostrarSenha(!mostrarSenha)} className="absolute right-3 top-3 text-gray-400">
+                                        {mostrarSenha ? '🙈' : '👁️'}
+                                    </button>
+                                </div>
+                                
+                                <button onClick={fazerLogin} className="w-full py-3 text-white rounded-xl font-bold text-lg"
+                                    style={{backgroundColor: USUARIOS[usuarioSelecionado]?.cor}}>
+                                    Entrar como {USUARIOS[usuarioSelecionado]?.nome}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className={`min-h-screen ${bgClass} p-4`}>
+                    <div className="max-w-6xl mx-auto space-y-4">
+                        
+                        {/* Header */}
+                        <div className={`${cardClass} rounded-2xl shadow-xl p-4`}>
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h1 className="text-xl font-bold">Financeiro</h1>
+                                        <span className="px-2 py-1 rounded-lg text-white text-sm font-bold" style={{backgroundColor: USUARIOS[usuarioAtual]?.cor}}>
+                                            {USUARIOS[usuarioAtual]?.nome}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                                        <span className={`w-2 h-2 rounded-full ${sincronizando ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`}></span>
+                                        {sincronizando ? 'Sincronizando...' : 'Sincronizado'}
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button onClick={() => setMostrarTrocarSenha(true)} className="p-2 bg-gray-500 text-white rounded-xl" title="Trocar Senha">🔑</button>
+                                    <button onClick={() => setDarkMode(!darkMode)} className="p-2 bg-purple-500 text-white rounded-xl">
+                                        <Icon name={darkMode ? 'sun' : 'moon'} />
+                                    </button>
+                                    <button onClick={fazerLogout} className="p-2 bg-red-500 text-white rounded-xl" title="Sair">🚪</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Trocar Senha */}
+                        {mostrarTrocarSenha && (
+                            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                                <div className={`${cardClass} rounded-2xl p-6 w-full max-w-sm shadow-2xl`}>
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="text-lg font-bold">🔑 Trocar Senha</h3>
+                                        <button onClick={() => setMostrarTrocarSenha(false)}><Icon name="x" /></button>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <input type="password" value={senhaAtual} onChange={(e) => setSenhaAtual(e.target.value)}
+                                            placeholder="Senha atual" className={`w-full px-3 py-2 border-2 rounded-lg ${inputClass}`} />
+                                        <input type="password" value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)}
+                                            placeholder="Nova senha" className={`w-full px-3 py-2 border-2 rounded-lg ${inputClass}`} />
+                                        <input type="password" value={confirmarSenha} onChange={(e) => setConfirmarSenha(e.target.value)}
+                                            placeholder="Confirmar nova senha" className={`w-full px-3 py-2 border-2 rounded-lg ${inputClass}`} />
+                                        <div className="flex gap-2">
+                                            <button onClick={() => setMostrarTrocarSenha(false)} className="flex-1 py-2 bg-gray-200 text-gray-700 rounded-lg">Cancelar</button>
+                                            <button onClick={trocarSenha} className="flex-1 py-2 bg-purple-600 text-white rounded-lg">Salvar</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Cards Resumo */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div className="bg-gradient-to-br from-green-400 to-green-600 rounded-2xl p-4 text-white">
+                                <p className="text-xs opacity-80">Saldo Contas</p>
+                                <p className="text-lg font-bold">{formatarMoeda(saldoContas)}</p>
+                            </div>
+                            <div className="bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl p-4 text-white">
+                                <p className="text-xs opacity-80">Receitas</p>
+                                <p className="text-lg font-bold">{formatarMoeda(totalReceitas)}</p>
+                            </div>
+                            <div className="bg-gradient-to-br from-red-400 to-red-600 rounded-2xl p-4 text-white">
+                                <p className="text-xs opacity-80">Despesas</p>
+                                <p className="text-lg font-bold">{formatarMoeda(totalDespesas)}</p>
+                            </div>
+                            <div className="bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl p-4 text-white">
+                                <p className="text-xs opacity-80">A Pagar</p>
+                                <p className="text-lg font-bold">{formatarMoeda(despesasPendentes + totalParcelasPendentes)}</p>
+                            </div>
+                        </div>
+
+                        {/* Navegação */}
+                        <div className={`${cardClass} rounded-xl shadow p-2`}>
+                            <div className="flex gap-1 overflow-x-auto">
+                                {['dashboard', 'financas', 'parcelas', 'recorrentes', 'contas', 'investimentos'].map(tab => (
+                                    <button key={tab} onClick={() => setActiveTab(tab)}
+                                        className={`px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${activeTab === tab ? 'bg-purple-600 text-white' : 'hover:bg-gray-100'}`}>
+                                        {tab === 'dashboard' ? '📊' : tab === 'financas' ? '💵' : tab === 'parcelas' ? '📅' : tab === 'recorrentes' ? '🔄' : tab === 'contas' ? '💳' : '📈'} {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Conteúdo das Abas */}
+                        <div className={`${cardClass} rounded-2xl shadow-xl p-4`}>
+                            
+                            {/* Dashboard */}
+                            {activeTab === 'dashboard' && (
+                                <div className="space-y-4">
+                                    <h2 className="text-xl font-bold">📊 Dashboard</h2>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                                            <h3 className="font-bold mb-3">💰 Resumo Financeiro</h3>
+                                            <div className="space-y-2 text-sm">
+                                                <div className="flex justify-between"><span>Saldo em Contas:</span><span className="font-bold text-green-600">{formatarMoeda(saldoContas)}</span></div>
+                                                <div className="flex justify-between"><span>Investimentos:</span><span className="font-bold text-purple-600">{formatarMoeda(totalInvestido)}</span></div>
+                                                <div className="flex justify-between"><span>Despesas Pendentes:</span><span className="font-bold text-red-600">{formatarMoeda(despesasPendentes)}</span></div>
+                                                <div className="flex justify-between"><span>Parcelas Pendentes:</span><span className="font-bold text-orange-600">{formatarMoeda(totalParcelasPendentes)}</span></div>
+                                                <hr className={darkMode ? 'border-gray-600' : ''} />
+                                                <div className="flex justify-between"><span>Saldo após pagar tudo:</span>
+                                                    <span className={`font-bold ${(saldoContas - despesasPendentes - totalParcelasPendentes) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                        {formatarMoeda(saldoContas - despesasPendentes - totalParcelasPendentes)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                                            <h3 className="font-bold mb-3">📅 Próximos Vencimentos</h3>
+                                            <div className="space-y-2 text-sm max-h-40 overflow-y-auto">
+                                                {transacoes.filter(t => !t.pago).sort((a,b) => a.data.localeCompare(b.data)).slice(0, 5).map(t => (
+                                                    <div key={t.id} className="flex justify-between items-center">
+                                                        <span className="truncate">{t.descricao}</span>
+                                                        <span className="text-red-600 font-medium">{formatarMoeda(t.valor)}</span>
+                                                    </div>
+                                                ))}
+                                                {transacoes.filter(t => !t.pago).length === 0 && <p className="text-gray-500">Nenhuma pendência! 🎉</p>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                                        <h3 className="font-bold mb-3">🔄 Transações Recorrentes</h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                                            {recorrentes.slice(0, 4).map(r => (
+                                                <div key={r.id} className="flex justify-between items-center p-2 bg-white rounded-lg shadow-sm">
+                                                    <span>{r.descricao}</span>
+                                                    <span className={r.tipo === 'receita' ? 'text-green-600' : 'text-red-600'}>{formatarMoeda(r.valor)}</span>
+                                                </div>
+                                            ))}
+                                            {recorrentes.length === 0 && <p className="text-gray-500 col-span-2">Nenhuma recorrente cadastrada</p>}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Finanças */}
+                            {activeTab === 'financas' && (
+                                <div className="space-y-4">
+                                    <h2 className="text-xl font-bold">💵 Transações</h2>
+                                    
+                                    {/* Formulário */}
+                                    <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
+                                            <select value={formTransacao.tipo} onChange={(e) => setFormTransacao({...formTransacao, tipo: e.target.value})}
+                                                className={`px-3 py-2 rounded-lg border-2 ${inputClass}`}>
+                                                <option value="despesa">Despesa</option>
+                                                <option value="receita">Receita</option>
+                                            </select>
+                                            <input type="text" placeholder="Descrição" value={formTransacao.descricao}
+                                                onChange={(e) => setFormTransacao({...formTransacao, descricao: e.target.value})}
+                                                className={`px-3 py-2 rounded-lg border-2 ${inputClass}`} />
+                                            <input type="number" placeholder="Valor" value={formTransacao.valor}
+                                                onChange={(e) => setFormTransacao({...formTransacao, valor: e.target.value})}
+                                                className={`px-3 py-2 rounded-lg border-2 ${inputClass}`} />
+                                            <select value={formTransacao.categoria} onChange={(e) => setFormTransacao({...formTransacao, categoria: e.target.value})}
+                                                className={`px-3 py-2 rounded-lg border-2 ${inputClass}`}>
+                                                <option value="">Categoria</option>
+                                                {categorias.map(c => <option key={c} value={c}>{c}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                            <input type="date" value={formTransacao.data}
+                                                onChange={(e) => setFormTransacao({...formTransacao, data: e.target.value})}
+                                                className={`px-3 py-2 rounded-lg border-2 ${inputClass}`} />
+                                            <select value={formTransacao.contaId || ''} onChange={(e) => setFormTransacao({...formTransacao, contaId: e.target.value || null})}
+                                                className={`px-3 py-2 rounded-lg border-2 ${inputClass}`}>
+                                                <option value="">Conta (opcional)</option>
+                                                {contas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                                            </select>
+                                            <label className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 ${inputClass}`}>
+                                                <input type="checkbox" checked={formTransacao.pago} onChange={(e) => setFormTransacao({...formTransacao, pago: e.target.checked})} />
+                                                Pago
+                                            </label>
+                                            <button onClick={adicionarTransacao} className="px-4 py-2 bg-purple-600 text-white rounded-lg font-medium">
+                                                <Icon name="plus" className="w-4 h-4 inline mr-1" /> Adicionar
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Filtros */}
+                                    <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                                        <div className="flex flex-wrap gap-2 items-center">
+                                            <div className="relative flex-1 min-w-[200px]">
+                                                <Icon name="search" className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+                                                <input type="text" placeholder="Buscar transação..." value={busca}
+                                                    onChange={(e) => setBusca(e.target.value)}
+                                                    className={`w-full pl-10 pr-3 py-2 rounded-lg border-2 ${inputClass}`} />
+                                            </div>
+                                            <button onClick={() => setMostrarFiltros(!mostrarFiltros)}
+                                                className={`px-3 py-2 rounded-lg border-2 ${mostrarFiltros ? 'bg-purple-100 border-purple-500' : inputClass}`}>
+                                                🔽 Filtros
+                                            </button>
+                                            {(busca || dataInicio || dataFim || filtroFinanceiro !== 'todas' || filtroTipo !== 'todos') && (
+                                                <button onClick={limparFiltros} className="px-3 py-2 bg-red-100 text-red-600 rounded-lg text-sm">
+                                                    ✕ Limpar
+                                                </button>
+                                            )}
+                                        </div>
+                                        
+                                        {mostrarFiltros && (
+                                            <div className="mt-3 pt-3 border-t grid grid-cols-2 md:grid-cols-4 gap-2">
+                                                <div>
+                                                    <label className="text-xs text-gray-500">Data Início</label>
+                                                    <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)}
+                                                        className={`w-full px-3 py-2 rounded-lg border-2 ${inputClass}`} />
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs text-gray-500">Data Fim</label>
+                                                    <input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)}
+                                                        className={`w-full px-3 py-2 rounded-lg border-2 ${inputClass}`} />
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs text-gray-500">Status</label>
+                                                    <select value={filtroFinanceiro} onChange={(e) => setFiltroFinanceiro(e.target.value)}
+                                                        className={`w-full px-3 py-2 rounded-lg border-2 ${inputClass}`}>
+                                                        <option value="todas">Todas</option>
+                                                        <option value="pagas">Pagas</option>
+                                                        <option value="pendentes">Pendentes</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs text-gray-500">Tipo</label>
+                                                    <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}
+                                                        className={`w-full px-3 py-2 rounded-lg border-2 ${inputClass}`}>
+                                                        <option value="todos">Todos</option>
+                                                        <option value="receitas">Receitas</option>
+                                                        <option value="despesas">Despesas</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Lista */}
+                                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                                        <p className="text-sm text-gray-500">{transacoesFiltradas.length} transações encontradas</p>
+                                        {transacoesFiltradas.map(t => (
+                                            <div key={t.id} className={`p-3 rounded-xl border-2 ${t.pago ? (darkMode ? 'border-gray-600' : 'border-gray-200') : 'border-orange-300 bg-orange-50'}`}>
+                                                {editandoTransacao === t.id ? (
+                                                    <div className="space-y-2">
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            <input type="text" value={formEdicao.descricao} onChange={(e) => setFormEdicao({...formEdicao, descricao: e.target.value})}
+                                                                className={`px-2 py-1 rounded border ${inputClass}`} />
+                                                            <input type="number" value={formEdicao.valor} onChange={(e) => setFormEdicao({...formEdicao, valor: e.target.value})}
+                                                                className={`px-2 py-1 rounded border ${inputClass}`} />
+                                                        </div>
+                                                        <div className="flex gap-2">
+                                                            <button onClick={() => salvarEdicao(t)} className="px-3 py-1 bg-green-600 text-white rounded text-sm">Salvar</button>
+                                                            <button onClick={() => setEditandoTransacao(null)} className="px-3 py-1 bg-gray-300 rounded text-sm">Cancelar</button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center gap-3">
+                                                        <button onClick={() => abrirModalBaixa(t)}>
+                                                            <Icon name={t.pago ? 'check' : 'circle'} className={`w-6 h-6 ${t.pago ? 'text-green-600' : 'text-orange-500'}`} />
+                                                        </button>
+                                                        <div className="flex-1">
+                                                            <p className={`font-medium ${t.pago ? 'text-gray-500' : ''}`}>{t.descricao}</p>
+                                                            <p className="text-xs text-gray-500">{formatarData(t.data)} • {t.categoria}</p>
+                                                        </div>
+                                                        <span className={`font-bold ${t.tipo === 'receita' ? 'text-green-600' : 'text-red-600'}`}>
+                                                            {t.tipo === 'receita' ? '+' : '-'}{formatarMoeda(t.valor)}
+                                                        </span>
+                                                        <button onClick={() => iniciarEdicao(t)} className="p-1 text-blue-500"><Icon name="edit" className="w-4 h-4" /></button>
+                                                        <button onClick={() => excluirTransacao(t.id)} className="p-1 text-red-500"><Icon name="trash" className="w-4 h-4" /></button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Parcelas */}
+                            {activeTab === 'parcelas' && (
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-center">
+                                        <h2 className="text-xl font-bold">📅 Compras Parceladas</h2>
+                                        <button onClick={() => setMostrarFormParcela(!mostrarFormParcela)}
+                                            className="px-4 py-2 bg-purple-600 text-white rounded-lg">
+                                            <Icon name="plus" className="w-4 h-4 inline mr-1" /> Nova Parcela
+                                        </button>
+                                    </div>
+
+                                    {/* Resumo Parcelas */}
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                        <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-orange-50'}`}>
+                                            <p className="text-xs text-gray-500">Total a Pagar</p>
+                                            <p className="text-xl font-bold text-orange-600">{formatarMoeda(totalParcelasPendentes)}</p>
+                                        </div>
+                                        <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-blue-50'}`}>
+                                            <p className="text-xs text-gray-500">Compras Ativas</p>
+                                            <p className="text-xl font-bold text-blue-600">{parcelas.filter(p => p.parcelasPagas < p.numParcelas).length}</p>
+                                        </div>
+                                        <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-green-50'}`}>
+                                            <p className="text-xs text-gray-500">Quitadas</p>
+                                            <p className="text-xl font-bold text-green-600">{parcelas.filter(p => p.parcelasPagas >= p.numParcelas).length}</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Form Nova Parcela */}
+                                    {mostrarFormParcela && (
+                                        <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                                            <h3 className="font-bold mb-3">Nova Compra Parcelada</h3>
+                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                                <input type="text" placeholder="Descrição" value={formParcela.descricao}
+                                                    onChange={(e) => setFormParcela({...formParcela, descricao: e.target.value})}
+                                                    className={`px-3 py-2 rounded-lg border-2 ${inputClass}`} />
+                                                <input type="number" placeholder="Valor Total" value={formParcela.valorTotal}
+                                                    onChange={(e) => setFormParcela({...formParcela, valorTotal: e.target.value})}
+                                                    className={`px-3 py-2 rounded-lg border-2 ${inputClass}`} />
+                                                <input type="number" placeholder="Nº Parcelas" value={formParcela.numParcelas}
+                                                    onChange={(e) => setFormParcela({...formParcela, numParcelas: e.target.value})}
+                                                    className={`px-3 py-2 rounded-lg border-2 ${inputClass}`} />
+                                                <input type="number" placeholder="Dia Vencimento (1-31)" value={formParcela.diaVencimento}
+                                                    onChange={(e) => setFormParcela({...formParcela, diaVencimento: e.target.value})}
+                                                    className={`px-3 py-2 rounded-lg border-2 ${inputClass}`} min="1" max="31" />
+                                                <select value={formParcela.categoria} onChange={(e) => setFormParcela({...formParcela, categoria: e.target.value})}
+                                                    className={`px-3 py-2 rounded-lg border-2 ${inputClass}`}>
+                                                    <option value="">Categoria</option>
+                                                    {categorias.map(c => <option key={c} value={c}>{c}</option>)}
+                                                </select>
+                                                <select value={formParcela.contaId || ''} onChange={(e) => setFormParcela({...formParcela, contaId: e.target.value || null})}
+                                                    className={`px-3 py-2 rounded-lg border-2 ${inputClass}`}>
+                                                    <option value="">Conta (opcional)</option>
+                                                    {contas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                                                </select>
+                                            </div>
+                                            {formParcela.valorTotal && formParcela.numParcelas && (
+                                                <p className="text-sm text-gray-500 mt-2">
+                                                    Valor da parcela: <strong>{formatarMoeda(parseFloat(formParcela.valorTotal) / parseInt(formParcela.numParcelas))}</strong>
+                                                </p>
+                                            )}
+                                            <div className="flex gap-2 mt-3">
+                                                <button onClick={() => setMostrarFormParcela(false)} className="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button>
+                                                <button onClick={adicionarParcela} className="px-4 py-2 bg-purple-600 text-white rounded-lg">Adicionar</button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Lista Parcelas */}
+                                    <div className="space-y-3">
+                                        {parcelas.map(p => {
+                                            const restantes = p.numParcelas - p.parcelasPagas;
+                                            const valorRestante = restantes * p.valorParcela;
+                                            const progresso = (p.parcelasPagas / p.numParcelas) * 100;
+                                            
+                                            return (
+                                                <div key={p.id} className={`p-4 rounded-xl border-2 ${restantes === 0 ? 'border-green-300 bg-green-50' : 'border-gray-200'}`}>
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <div>
+                                                            <h4 className="font-bold">{p.descricao}</h4>
+                                                            <p className="text-sm text-gray-500">Dia {p.diaVencimento} • {p.categoria}</p>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="font-bold text-lg">{formatarMoeda(p.valorParcela)}/mês</p>
+                                                            <p className="text-xs text-gray-500">Total: {formatarMoeda(p.valorTotal)}</p>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div className="mb-2">
+                                                        <div className="flex justify-between text-sm mb-1">
+                                                            <span>{p.parcelasPagas}/{p.numParcelas} pagas</span>
+                                                            <span className="text-orange-600">Faltam: {formatarMoeda(valorRestante)}</span>
+                                                        </div>
+                                                        <div className="w-full bg-gray-200 rounded-full h-2">
+                                                            <div className="bg-purple-600 h-2 rounded-full transition-all" style={{width: `${progresso}%`}}></div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div className="flex gap-2">
+                                                        {restantes > 0 && (
+                                                            <button onClick={() => pagarParcela(p)}
+                                                                className="px-3 py-1 bg-green-600 text-white rounded-lg text-sm">
+                                                                ✓ Pagar Parcela
+                                                            </button>
+                                                        )}
+                                                        <button onClick={() => excluirParcela(p.id)}
+                                                            className="px-3 py-1 bg-red-100 text-red-600 rounded-lg text-sm">
+                                                            Excluir
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                        {parcelas.length === 0 && (
+                                            <p className="text-center text-gray-500 py-8">Nenhuma compra parcelada cadastrada</p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Recorrentes */}
+                            {activeTab === 'recorrentes' && (
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-center">
+                                        <h2 className="text-xl font-bold">🔄 Transações Recorrentes</h2>
+                                        <button onClick={() => setMostrarFormRecorrente(!mostrarFormRecorrente)}
+                                            className="px-4 py-2 bg-purple-600 text-white rounded-lg">
+                                            <Icon name="plus" className="w-4 h-4 inline mr-1" /> Nova Recorrente
+                                        </button>
+                                    </div>
+
+                                    <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-blue-50'}`}>
+                                        <p className="text-sm">💡 <strong>Dica:</strong> Cadastre aqui contas fixas como aluguel, internet, salário. Depois clique em "Gerar" para criar a transação do mês.</p>
+                                    </div>
+
+                                    {/* Form Nova Recorrente */}
+                                    {mostrarFormRecorrente && (
+                                        <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                                            <h3 className="font-bold mb-3">Nova Transação Recorrente</h3>
+                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                                <select value={formRecorrente.tipo} onChange={(e) => setFormRecorrente({...formRecorrente, tipo: e.target.value})}
+                                                    className={`px-3 py-2 rounded-lg border-2 ${inputClass}`}>
+                                                    <option value="despesa">Despesa</option>
+                                                    <option value="receita">Receita</option>
+                                                </select>
+                                                <input type="text" placeholder="Descrição" value={formRecorrente.descricao}
+                                                    onChange={(e) => setFormRecorrente({...formRecorrente, descricao: e.target.value})}
+                                                    className={`px-3 py-2 rounded-lg border-2 ${inputClass}`} />
+                                                <input type="number" placeholder="Valor" value={formRecorrente.valor}
+                                                    onChange={(e) => setFormRecorrente({...formRecorrente, valor: e.target.value})}
+                                                    className={`px-3 py-2 rounded-lg border-2 ${inputClass}`} />
+                                                <input type="number" placeholder="Dia (1-31)" value={formRecorrente.diaVencimento}
+                                                    onChange={(e) => setFormRecorrente({...formRecorrente, diaVencimento: e.target.value})}
+                                                    className={`px-3 py-2 rounded-lg border-2 ${inputClass}`} min="1" max="31" />
+                                                <select value={formRecorrente.categoria} onChange={(e) => setFormRecorrente({...formRecorrente, categoria: e.target.value})}
+                                                    className={`px-3 py-2 rounded-lg border-2 ${inputClass}`}>
+                                                    <option value="">Categoria</option>
+                                                    {categorias.map(c => <option key={c} value={c}>{c}</option>)}
+                                                </select>
+                                                <select value={formRecorrente.contaId || ''} onChange={(e) => setFormRecorrente({...formRecorrente, contaId: e.target.value || null})}
+                                                    className={`px-3 py-2 rounded-lg border-2 ${inputClass}`}>
+                                                    <option value="">Conta (opcional)</option>
+                                                    {contas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="flex gap-2 mt-3">
+                                                <button onClick={() => setMostrarFormRecorrente(false)} className="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button>
+                                                <button onClick={adicionarRecorrente} className="px-4 py-2 bg-purple-600 text-white rounded-lg">Adicionar</button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Lista Recorrentes */}
+                                    <div className="space-y-2">
+                                        {recorrentes.map(r => (
+                                            <div key={r.id} className={`p-4 rounded-xl border-2 ${darkMode ? 'border-gray-600' : 'border-gray-200'}`}>
+                                                <div className="flex justify-between items-center">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${r.tipo === 'receita' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                                                            {r.tipo === 'receita' ? '📈' : '📉'}
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-medium">{r.descricao}</p>
+                                                            <p className="text-xs text-gray-500">Dia {r.diaVencimento} • {r.categoria}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className={`font-bold ${r.tipo === 'receita' ? 'text-green-600' : 'text-red-600'}`}>
+                                                            {formatarMoeda(r.valor)}
+                                                        </span>
+                                                        <button onClick={() => gerarTransacaoRecorrente(r)}
+                                                            className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm">
+                                                            <Icon name="refresh" className="w-4 h-4 inline mr-1" /> Gerar
+                                                        </button>
+                                                        <button onClick={() => excluirRecorrente(r.id)} className="p-1 text-red-500">
+                                                            <Icon name="trash" className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {recorrentes.length === 0 && (
+                                            <p className="text-center text-gray-500 py-8">Nenhuma transação recorrente cadastrada</p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Contas */}
+                            {activeTab === 'contas' && (
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-center">
+                                        <h2 className="text-xl font-bold">💳 Contas</h2>
+                                        <button onClick={() => setMostrarFormConta(!mostrarFormConta)}
+                                            className="px-4 py-2 bg-purple-600 text-white rounded-lg">
+                                            <Icon name="plus" className="w-4 h-4 inline mr-1" /> Nova Conta
+                                        </button>
+                                    </div>
+
+                                    {mostrarFormConta && (
+                                        <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                                                <input type="text" placeholder="Nome da conta" value={formConta.nome}
+                                                    onChange={(e) => setFormConta({...formConta, nome: e.target.value})}
+                                                    className={`px-3 py-2 rounded-lg border-2 ${inputClass}`} />
+                                                <input type="number" placeholder="Saldo inicial" value={formConta.saldoInicial}
+                                                    onChange={(e) => setFormConta({...formConta, saldoInicial: e.target.value})}
+                                                    className={`px-3 py-2 rounded-lg border-2 ${inputClass}`} />
+                                                <select value={formConta.tipo} onChange={(e) => setFormConta({...formConta, tipo: e.target.value})}
+                                                    className={`px-3 py-2 rounded-lg border-2 ${inputClass}`}>
+                                                    <option value="corrente">Corrente</option>
+                                                    <option value="poupanca">Poupança</option>
+                                                    <option value="carteira">Carteira</option>
+                                                </select>
+                                                <button onClick={adicionarConta} className="px-4 py-2 bg-purple-600 text-white rounded-lg">Criar</button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {contas.map(c => (
+                                            <div key={c.id} className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl p-5 text-white">
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <div>
+                                                        <p className="text-sm opacity-80">{c.tipo}</p>
+                                                        <h3 className="text-xl font-bold">{c.nome}</h3>
+                                                    </div>
+                                                    <button onClick={() => excluirConta(c.id)} className="text-white opacity-60 hover:opacity-100">
+                                                        <Icon name="trash" className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                                
+                                                {editandoConta === c.id ? (
+                                                    <div className="flex gap-2">
+                                                        <input type="number" value={novoSaldoConta} onChange={(e) => setNovoSaldoConta(e.target.value)}
+                                                            className="flex-1 px-3 py-2 rounded-lg text-gray-800" placeholder="Novo saldo" />
+                                                        <button onClick={() => editarSaldoConta(c.id, novoSaldoConta)} className="px-3 py-2 bg-green-500 rounded-lg">✓</button>
+                                                        <button onClick={() => setEditandoConta(null)} className="px-3 py-2 bg-gray-500 rounded-lg">✕</button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex justify-between items-end">
+                                                        <div>
+                                                            <p className="text-xs opacity-80">Saldo</p>
+                                                            <p className="text-2xl font-bold">{formatarMoeda(c.saldo)}</p>
+                                                        </div>
+                                                        <button onClick={() => { setEditandoConta(c.id); setNovoSaldoConta(c.saldo.toString()); }}
+                                                            className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">
+                                                            Editar
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {contas.length === 0 && <p className="text-center text-gray-500 py-8">Nenhuma conta cadastrada</p>}
+                                </div>
+                            )}
+
+                            {/* Investimentos */}
+                            {activeTab === 'investimentos' && (
+                                <div className="space-y-4">
+                                    <h2 className="text-xl font-bold">📈 Investimentos</h2>
+                                    
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-xl p-4 text-white">
+                                            <p className="text-xs opacity-80">Total Investido</p>
+                                            <p className="text-xl font-bold">{formatarMoeda(totalInvestido)}</p>
+                                        </div>
+                                        <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                                            <p className="text-xs text-gray-500">Operações</p>
+                                            <p className="text-xl font-bold">{investimentos.length}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
+                                            <select value={formInvestimento.tipo} onChange={(e) => setFormInvestimento({...formInvestimento, tipo: e.target.value})}
+                                                className={`px-3 py-2 rounded-lg border-2 ${inputClass}`}>
+                                                <option value="aplicacao">Aplicação</option>
+                                                <option value="resgate">Resgate</option>
+                                            </select>
+                                            <input type="text" placeholder="Descrição" value={formInvestimento.descricao}
+                                                onChange={(e) => setFormInvestimento({...formInvestimento, descricao: e.target.value})}
+                                                className={`px-3 py-2 rounded-lg border-2 ${inputClass}`} />
+                                            <input type="number" placeholder="Valor" value={formInvestimento.valor}
+                                                onChange={(e) => setFormInvestimento({...formInvestimento, valor: e.target.value})}
+                                                className={`px-3 py-2 rounded-lg border-2 ${inputClass}`} />
+                                            <select value={formInvestimento.categoria} onChange={(e) => setFormInvestimento({...formInvestimento, categoria: e.target.value})}
+                                                className={`px-3 py-2 rounded-lg border-2 ${inputClass}`}>
+                                                {categoriasInv.map(c => <option key={c} value={c}>{c}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                            <input type="date" value={formInvestimento.data}
+                                                onChange={(e) => setFormInvestimento({...formInvestimento, data: e.target.value})}
+                                                className={`px-3 py-2 rounded-lg border-2 ${inputClass}`} />
+                                            <select value={formInvestimento.contaId || ''} onChange={(e) => setFormInvestimento({...formInvestimento, contaId: e.target.value || null})}
+                                                className={`px-3 py-2 rounded-lg border-2 ${inputClass}`}>
+                                                <option value="">Selecione a conta</option>
+                                                {contas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                                            </select>
+                                            <button onClick={adicionarInvestimento} className="px-4 py-2 bg-purple-600 text-white rounded-lg">
+                                                <Icon name="plus" className="w-4 h-4 inline mr-1" /> Adicionar
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        {investimentos.sort((a,b) => b.data?.localeCompare(a.data)).map(inv => (
+                                            <div key={inv.id} className={`p-3 rounded-xl border-2 ${darkMode ? 'border-gray-600' : 'border-gray-200'}`}>
+                                                <div className="flex justify-between items-center">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${inv.tipo === 'aplicacao' ? 'bg-purple-100 text-purple-600' : 'bg-green-100 text-green-600'}`}>
+                                                            {inv.tipo === 'aplicacao' ? '📥' : '📤'}
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-medium">{inv.descricao}</p>
+                                                            <p className="text-xs text-gray-500">{formatarData(inv.data)} • {inv.categoria}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`font-bold ${inv.tipo === 'aplicacao' ? 'text-purple-600' : 'text-green-600'}`}>
+                                                            {inv.tipo === 'aplicacao' ? '-' : '+'}{formatarMoeda(inv.valor)}
+                                                        </span>
+                                                        <button onClick={() => excluirInvestimento(inv)} className="p-1 text-red-500">
+                                                            <Icon name="trash" className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {investimentos.length === 0 && <p className="text-center text-gray-500 py-8">Nenhum investimento cadastrado</p>}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Dar Baixa */}
+                        {dandoBaixa && (
+                            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                                <div className={`${cardClass} rounded-2xl p-6 w-full max-w-sm shadow-2xl`}>
+                                    <h3 className="text-lg font-bold mb-4">💵 Dar Baixa</h3>
+                                    <p className="mb-2"><strong>{dandoBaixa.descricao}</strong></p>
+                                    <p className="text-2xl font-bold text-red-600 mb-4">{formatarMoeda(dandoBaixa.valor)}</p>
+                                    
+                                    <label className="text-sm text-gray-600">Débitar da conta:</label>
+                                    <select value={contaBaixa || ''} onChange={(e) => setContaBaixa(e.target.value || null)}
+                                        className={`w-full px-3 py-2 rounded-lg border-2 mb-4 ${inputClass}`}>
+                                        <option value="">Nenhuma (só marcar como pago)</option>
+                                        {contas.map(c => <option key={c.id} value={c.id}>{c.nome} ({formatarMoeda(c.saldo)})</option>)}
+                                    </select>
+                                    
+                                    <div className="flex gap-2">
+                                        <button onClick={() => setDandoBaixa(null)} className="flex-1 py-2 bg-gray-200 text-gray-700 rounded-lg">Cancelar</button>
+                                        <button onClick={() => confirmarBaixa(dandoBaixa, contaBaixa)} className="flex-1 py-2 bg-green-600 text-white rounded-lg">Confirmar</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
